@@ -24,3 +24,37 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* ===== Campos no celular ===== */
+/* Campo selecionado: destaque forte para o técnico ver onde está digitando */
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([readonly]):focus,
+textarea:focus,
+select:focus {
+  outline: 3px solid #2563eb !important;
+  outline-offset: 1px;
+  background-color: #eff6ff !important;
+  box-shadow: 0 0 0 6px rgb(37 99 235 / 0.15) !important;
+  scroll-margin-top: 120px;
+  scroll-margin-bottom: 40px;
+}
+
+/* Campo obrigatório ainda vazio: fundo amarelado e borda âmbar */
+input.campo-obrigatorio:placeholder-shown:not(:focus) {
+  background-color: #fffbeb !important;
+  border-color: #f59e0b !important;
+  border-width: 2px;
+}
+
+/* Evita o zoom automático do iPhone ao focar campos com fonte pequena */
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
+/* Com o teclado aberto, a barra de progresso fixa não rouba espaço da tela */
+html.teclado-aberto .barra-etapas-fixa {
+  position: static !important;
+}
