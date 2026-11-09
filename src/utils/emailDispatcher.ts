@@ -211,10 +211,19 @@ export async function shareOSWithPDFAttachment(os: OrdemServico): Promise<{
       }
 
       if (navigator.canShare && navigator.canShare({ files: filesToShare })) {
+        // O compartilhamento nativo (Android/iOS) NÃO permite definir o destinatário.
+        // Por isso o e-mail é copiado antes: no app de e-mail basta "Colar" no campo Para.
+        try {
+          await navigator.clipboard?.writeText(MAQUIM_EMAIL_DESTINATARIO);
+        } catch {
+          // sem permissão de área de transferência: o destinatário segue no texto abaixo
+        }
         await navigator.share({
           files: filesToShare,
           title: subject,
-          text: body,
+          text: `PARA: ${MAQUIM_EMAIL_DESTINATARIO}
+
+${body}`,
         });
         return { success: true, method: 'native-share', filenames };
       }

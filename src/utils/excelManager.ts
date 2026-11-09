@@ -7,6 +7,7 @@ import { LocalDistribuicao, NovoEquipamento, OrdemServico, EquipamentoAnterior }
 export function exportDistribuicaoToExcel(locais: LocalDistribuicao[]): void {
   const rows = locais.map((l, index) => ({
     'Item': index + 1,
+    'ID': l.id,
     'Secretaria': l.secretaria,
     'Nº OS Instalação': l.ordemServico || '',
     'Nº OS Retirada': l.ordemServicoRetirada || '',
@@ -17,7 +18,7 @@ export function exportDistribuicaoToExcel(locais: LocalDistribuicao[]): void {
     'Nº de Série Instalado': l.serieInstalada || '',
     'Modelo': l.modeloPrevisto,
     'Tipo': l.tipoEquipamento,
-    'Setor': l.setor || '',
+    'Setor': l.setor || '', // Localização dentro do local
     'Endereço Local Instalação': l.endereco,
     'Bairro': l.bairro,
     'Responsável do Local': l.responsavelLocal,

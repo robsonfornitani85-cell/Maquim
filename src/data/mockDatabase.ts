@@ -1,5 +1,6 @@
 import { NovoEquipamento, LocalDistribuicao, EquipamentoAnterior, OrdemServico } from '../types';
 import realData from './realContractData.json';
+import { loadOrdens, putOrdem, deleteOrdensWhere } from './osStore';
 
 // Senha mestra de proteção definida pelo usuário para o contrato de Lorena
 export const PASSWORD_PROTECTION = '223622';
@@ -13,7 +14,6 @@ const STORAGE_KEYS = {
   NOVOS: 'maquim_novos_equipamentos_v6_lorena',
   LOCAIS: 'maquim_locais_distribuicao_v6_lorena',
   RETIRADAS: 'maquim_equipamentos_anteriores_v6_lorena',
-  ORDENS: 'maquim_ordens_servico_v6_lorena',
   TECNICO: 'maquim_tecnico_padrao_v6',
 };
 
@@ -120,26 +120,33 @@ export function saveEquipamentosAnteriores(items: EquipamentoAnterior[]): void {
   }
 }
 
-export function getOrdensServico(): OrdemServico[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.ORDENS);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.error('Erro ao ler ordens de serviço:', e);
-  }
-  return [];
+/** Ordens de Serviço salvas neste aparelho (IndexedDB). */
+export function getOrdensServico(): Promise<OrdemServico[]> {
+  return loadOrdens();
 }
 
-export function saveOrdemServico(os: OrdemServico): void {
-  const ordens = getOrdensServico();
-  const existingIndex = ordens.findIndex(o => o.id === os.id);
-  if (existingIndex >= 0) {
-    ordens[existingIndex] = os;
-  } else {
-    ordens.unshift(os);
+/** Localiza a linha exata da planilha de distribuição (GATi + localização). */
+export function findLocalIndex(locais: LocalDistribuicao[], localId?: string, gati?: string, setor?: string): number {
+  if (localId) {
+    const byId = locais.findIndex(l => l.id === localId);
+    if (byId >= 0) return byId;
   }
-  localStorage.setItem(STORAGE_KEYS.ORDENS, JSON.stringify(ordens));
+  if (!gati) return -1;
+  const g = gati.trim();
+  const s = (setor || '').trim().toUpperCase();
+  const sameGati = locais.map((l, i) => ({ l, i })).filter(({ l }) => l.gatiInstalacao.trim() === g);
+  if (!sameGati.length) return -1;
+  const bySetor = sameGati.find(({ l }) => (l.setor || '').trim().toUpperCase() === s && l.status !== 'instalado')
+    || sameGati.find(({ l }) => (l.setor || '').trim().toUpperCase() === s);
+  if (bySetor) return bySetor.i;
+  const pendente = sameGati.find(({ l }) => l.status !== 'instalado');
+  return (pendente || sameGati[0]).i;
+}
 
+/**
+ * Salva a OS no aparelho (IndexedDB) e atualiza as planilhas locais.
+ */
+export async function saveOrdemServico(os: OrdemServico): Promise<void> {
   // 1. Atualiza status do novo equipamento: marcado como 'instalado'
   const novos = getNovosEquipamentos();
   const eqIndex = novos.findIndex(e => e.patrimonio === os.patrimonio);
@@ -153,7 +160,7 @@ export function saveOrdemServico(os: OrdemServico): void {
 
   // 2. Atualiza local de distribuição: preenche patrimônio, série, data e bloqueia com senha 223622
   const locais = getLocaisDistribuicao();
-  const locIndex = locais.findIndex(l => l.gatiInstalacao === os.gatiInstalacao);
+  const locIndex = findLocalIndex(locais, os.localId, os.gatiInstalacao, os.setor);
   if (locIndex >= 0) {
     locais[locIndex].status = 'instalado';
     locais[locIndex].patrimonioInstalado = os.patrimonio;
@@ -176,7 +183,7 @@ export function saveOrdemServico(os: OrdemServico): void {
     if (retIndex >= 0) {
       retiradas[retIndex].status = os.equipamentoRetirado ? 'retirado' : 'nao_retirado';
       retiradas[retIndex].dataRetirada = os.dataInstalacao;
-      retiradas[retIndex].ordemServicoRetirada = os.numeroOSRetirada || '';
+      if (os.numeroOSRetirada) retiradas[retIndex].ordemServicoRetirada = os.numeroOSRetirada;
       retiradas[retIndex].contadorMono = os.contadorMono || '';
       retiradas[retIndex].contadorColor = os.contadorColor || '';
       retiradas[retIndex].contadorFinal = os.contadorPaginasFinal || '';
@@ -184,25 +191,29 @@ export function saveOrdemServico(os: OrdemServico): void {
       saveEquipamentosAnteriores(retiradas);
     }
   }
+
+  // 4. Grava a OS completa (fotos e assinatura inclusas) no IndexedDB
+  await putOrdem(os);
 }
 
 /**
  * Anula a instalação de um local e libera o patrimônio de volta para ser instalado.
  * Requer confirmação por senha '223622'.
  */
-export function anularInstalacao(
-  gatiInstalacao: string,
+export async function anularInstalacao(
+  localId: string,
   password: string
-): { success: boolean; message: string; patrimonioLiberado?: string } {
+): Promise<{ success: boolean; message: string; patrimonioLiberado?: string }> {
   if (!verifyProtectionPassword(password)) {
     return { success: false, message: 'Senha de proteção incorreta. Acesso não autorizado.' };
   }
 
   const locais = getLocaisDistribuicao();
-  const locIndex = locais.findIndex(l => l.gatiInstalacao === gatiInstalacao);
+  const locIndex = locais.findIndex(l => l.id === localId);
   if (locIndex < 0) {
     return { success: false, message: 'Local de distribuição não encontrado.' };
   }
+  const gatiInstalacao = locais[locIndex].gatiInstalacao;
 
   const local = locais[locIndex];
   const patInstalado = local.patrimonioInstalado;
@@ -228,9 +239,13 @@ export function anularInstalacao(
   local.protegido = false;
   saveLocaisDistribuicao(locais);
 
-  // 3. Libera o equipamento anterior a retirar (se houver vinculado pelo GATi)
+  // 3. Libera o equipamento anterior retirado nesta OS (identificado pela própria OS)
+  const ordensDoLocal = (await loadOrdens()).filter(
+    o => o.localId === localId || (!o.localId && o.gatiInstalacao === gatiInstalacao && o.patrimonio === patInstalado)
+  );
+  const patAnterior = ordensDoLocal.find(o => o.patrimonioAnterior)?.patrimonioAnterior;
   const retiradas = getEquipamentosAnteriores();
-  const retIndex = retiradas.findIndex(r => r.gatiInstalacao === gatiInstalacao);
+  const retIndex = patAnterior ? retiradas.findIndex(r => r.patrimonio === patAnterior) : -1;
   if (retIndex >= 0) {
     retiradas[retIndex].status = 'a_retirar';
     delete retiradas[retIndex].dataRetirada;
@@ -241,10 +256,9 @@ export function anularInstalacao(
     saveEquipamentosAnteriores(retiradas);
   }
 
-  // 4. Remove a OS do histórico correspondente a este GATi
-  const ordens = getOrdensServico();
-  const filteredOrdens = ordens.filter(o => o.gatiInstalacao !== gatiInstalacao);
-  localStorage.setItem(STORAGE_KEYS.ORDENS, JSON.stringify(filteredOrdens));
+  // 4. Remove do histórico somente a(s) OS(s) deste local
+  const idsRemover = new Set(ordensDoLocal.map(o => o.id));
+  await deleteOrdensWhere(o => idsRemover.has(o.id));
 
   return {
     success: true,
@@ -256,9 +270,9 @@ export function anularInstalacao(
 /**
  * Atualiza o número da OS de instalação na planilha
  */
-export function updateLocalOrdemServico(gatiInstalacao: string, numeroOS: string): void {
+export function updateLocalOrdemServico(localId: string, numeroOS: string): void {
   const locais = getLocaisDistribuicao();
-  const locIndex = locais.findIndex(l => l.gatiInstalacao === gatiInstalacao);
+  const locIndex = locais.findIndex(l => l.id === localId);
   if (locIndex >= 0) {
     locais[locIndex].ordemServico = numeroOS.trim();
     saveLocaisDistribuicao(locais);
@@ -268,9 +282,9 @@ export function updateLocalOrdemServico(gatiInstalacao: string, numeroOS: string
 /**
  * Atualiza o número da OS de retirada na planilha de distribuição
  */
-export function updateLocalOrdemServicoRetirada(gatiInstalacao: string, numeroOSRetirada: string): void {
+export function updateLocalOrdemServicoRetirada(localId: string, numeroOSRetirada: string): void {
   const locais = getLocaisDistribuicao();
-  const locIndex = locais.findIndex(l => l.gatiInstalacao === gatiInstalacao);
+  const locIndex = locais.findIndex(l => l.id === localId);
   if (locIndex >= 0) {
     locais[locIndex].ordemServicoRetirada = numeroOSRetirada.trim();
     saveLocaisDistribuicao(locais);
@@ -297,11 +311,14 @@ export function saveTecnicoPadrao(nome: string): void {
   localStorage.setItem(STORAGE_KEYS.TECNICO, nome);
 }
 
+/**
+ * Recarrega as planilhas originais. As OSs já registradas neste aparelho
+ * (histórico com PDFs) NÃO são apagadas.
+ */
 export function resetAllDataToDefault(): void {
   localStorage.removeItem(STORAGE_KEYS.NOVOS);
   localStorage.removeItem(STORAGE_KEYS.LOCAIS);
   localStorage.removeItem(STORAGE_KEYS.RETIRADAS);
-  localStorage.removeItem(STORAGE_KEYS.ORDENS);
 
   const novos = buildInitialNovosEquipamentos();
   const locais = buildInitialLocaisDistribuicao();

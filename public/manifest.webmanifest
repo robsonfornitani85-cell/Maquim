@@ -1,0 +1,16 @@
+{
+  "name": "Maquim Implantação e OS - Lorena",
+  "short_name": "Maquim OS",
+  "description": "Registro de instalações, retiradas e Ordens de Serviço em campo. Funciona sem internet.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B1B3D",
+  "theme_color": "#1e3a8a",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

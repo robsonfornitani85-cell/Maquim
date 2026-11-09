@@ -53,6 +53,39 @@ export function getEmailSubject(os: OrdemServico): string {
   return `Instalação: Patr. ${patInstalado}${osInstalacao}`;
 }
 
+/**
+ * Bloco da seção 4 (mesma ordem do formulário): usuários instruídos, depois
+ * nome e CPF do responsável que acompanhou e validou o serviço.
+ */
+function drawBlocoValidacaoResponsavel(doc: jsPDF, os: OrdemServico, margin: number, y: number): void {
+  const usuariosTexto = os.usuariosTreinados && os.usuariosTreinados.length > 0
+    ? os.usuariosTreinados.join(' • ')
+    : '(Nenhum usuário informado)';
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.text('INSTRUÇÕES DE USO E PRÉ-MANUTENÇÃO PRESTADAS A:', margin + 3, y + 12);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  const linhasUsuarios = (doc.splitTextToSize(usuariosTexto, 98) as string[]).slice(0, 2);
+  doc.text(linhasUsuarios, margin + 3, y + 15.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.text('NOME E SOBRENOME DO RESPONSÁVEL QUE ACOMPANHOU E VALIDOU O SERVIÇO:', margin + 3, y + 23, { maxWidth: 100 });
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text(`${os.responsavelNome || ''}`, margin + 3, y + 26.5, { maxWidth: 98 });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.text('CPF DO RESPONSÁVEL QUE ACOMPANHOU E VALIDOU O SERVIÇO:', margin + 3, y + 31);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text(`${os.responsavelCPF || ''}`, margin + 3, y + 34.5);
+}
+
 // Cores Oficiais Maquim
 const MAQUIM_COLORS = {
   navyDark: [11, 27, 61], // #0B1B3D - Deep Navy Maquim
@@ -345,7 +378,7 @@ export function generateOSInstalacaoPDF(os: OrdemServico): jsPDF {
   y += retirHeight + 4;
 
   // SEÇÃO 4: CONFIRMAÇÃO E VALIDAÇÃO DO CLIENTE
-  drawSectionTitle('4. VALIDAÇÃO DO RESPONSÁVEL DO LOCAL & USUÁRIOS');
+  drawSectionTitle('4. INSTRUÇÕES AOS USUÁRIOS & VALIDAÇÃO DO RESPONSÁVEL');
   doc.rect(margin, y, contentWidth, 38, 'FD');
 
   doc.setFont('helvetica', 'italic');
@@ -362,37 +395,17 @@ export function generateOSInstalacaoPDF(os: OrdemServico): jsPDF {
     y + 7.5
   );
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Responsável do Local: `, margin + 3, y + 14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${os.responsavelNome}`, margin + 35, y + 14);
-
-  doc.setFont('helvetica', 'normal');
-  doc.text(`CPF do Responsável: `, margin + 3, y + 20);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${os.responsavelCPF}`, margin + 33, y + 20);
-
-  const usuariosTexto = os.usuariosTreinados && os.usuariosTreinados.length > 0
-    ? os.usuariosTreinados.join(' • ')
-    : os.responsavelNome || 'Responsável do Local';
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Usuários Instruídos (Uso & Pré-Manutenção):`, margin + 3, y + 26);
-  doc.setFont('helvetica', 'bold');
-  doc.text(usuariosTexto, margin + 3, y + 31, { maxWidth: 98 });
+  drawBlocoValidacaoResponsavel(doc, os, margin, y);
 
   // Caixa de Assinatura do Cliente
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text('Assinatura do Responsável do Local:', margin + 105, y + 13);
+  doc.text('Assinatura do responsável que validou o serviço:', margin + 105, y + 13);
   doc.rect(margin + 105, y + 15, 70, 18);
 
   if (os.assinaturaClienteBase64) {
     try {
-      doc.addImage(os.assinaturaClienteBase64, 'PNG', margin + 106, y + 16, 68, 16);
+      doc.addImage(os.assinaturaClienteBase64, 'PNG', margin + 106, y + 15.5, 68, 17);
     } catch (e) {
       doc.text('(Assinado digitalmente)', margin + 120, y + 24);
     }
@@ -654,7 +667,7 @@ export function generateOSRetiradaPDF(os: OrdemServico): jsPDF {
   y += 24;
 
   // SEÇÃO 4: CONFIRMAÇÃO DO CLIENTE / RESPONSÁVEL DO LOCAL
-  drawSectionTitle('4. VALIDAÇÃO DO RESPONSÁVEL DO LOCAL & USUÁRIOS');
+  drawSectionTitle('4. INSTRUÇÕES AOS USUÁRIOS & VALIDAÇÃO DO RESPONSÁVEL');
   doc.rect(margin, y, contentWidth, 38, 'FD');
 
   doc.setFont('helvetica', 'italic');
@@ -671,37 +684,17 @@ export function generateOSRetiradaPDF(os: OrdemServico): jsPDF {
     y + 7.5
   );
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Responsável do Local: `, margin + 3, y + 14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${os.responsavelNome}`, margin + 35, y + 14);
-
-  doc.setFont('helvetica', 'normal');
-  doc.text(`CPF do Responsável: `, margin + 3, y + 20);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${os.responsavelCPF}`, margin + 33, y + 20);
-
-  const usuariosTexto = os.usuariosTreinados && os.usuariosTreinados.length > 0
-    ? os.usuariosTreinados.join(' • ')
-    : os.responsavelNome || 'Responsável do Local';
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Usuários Instruídos (Uso & Pré-Manutenção):`, margin + 3, y + 26);
-  doc.setFont('helvetica', 'bold');
-  doc.text(usuariosTexto, margin + 3, y + 31, { maxWidth: 98 });
+  drawBlocoValidacaoResponsavel(doc, os, margin, y);
 
   // Caixa de Assinatura do Cliente
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text('Assinatura de Devolução do Cliente:', margin + 105, y + 13);
+  doc.text('Assinatura do responsável que validou o serviço:', margin + 105, y + 13);
   doc.rect(margin + 105, y + 15, 70, 18);
 
   if (os.assinaturaClienteBase64) {
     try {
-      doc.addImage(os.assinaturaClienteBase64, 'PNG', margin + 106, y + 16, 68, 16);
+      doc.addImage(os.assinaturaClienteBase64, 'PNG', margin + 106, y + 15.5, 68, 17);
     } catch (e) {
       doc.text('(Assinado digitalmente)', margin + 120, y + 24);
     }

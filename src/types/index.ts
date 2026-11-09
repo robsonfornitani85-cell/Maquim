@@ -65,13 +65,14 @@ export interface OrdemServico {
   tecnicoNome: string;
   
   // Local de Instalação (GATi)
+  localId?: string; // id da linha exata da planilha (GATi + localização)
   gatiInstalacao: string;
   gatiFaturamento?: string;
   secretaria: string;
   clienteInstalacao: string;
   endereco: string;
   bairro: string;
-  setor?: string;
+  setor?: string; // Localização dentro do local (ex: DTI, RH, Protocolo)
   
   // Novo Equipamento
   patrimonio: string;
@@ -121,6 +122,7 @@ export interface OrdemServico {
   
   // Metadados de Envio
   enviadoEmail: boolean;
+  envioPendenteOffline?: boolean; // Sem internet: próxima instalação liberada, envio feito depois
   dataEnvioEmail?: string;
   emailDestinatario: string;
 }

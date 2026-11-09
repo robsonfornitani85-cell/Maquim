@@ -26,7 +26,7 @@ interface DashboardProps {
   locaisDistribuicao: LocalDistribuicao[];
   equipamentosAnteriores: EquipamentoAnterior[];
   ordens: OrdemServico[];
-  onStartInstallation: (gati?: string) => void;
+  onStartInstallation: (localId?: string) => void;
   onOpenSpreadsheet: () => void;
   onOpenHistory: () => void;
 }
@@ -66,6 +66,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       l.gatiInstalacao.includes(s) ||
       l.clienteInstalacao.toLowerCase().includes(s) ||
       l.bairro.toLowerCase().includes(s) ||
+      (l.setor || '').toLowerCase().includes(s) ||
       l.responsavelLocal.toLowerCase().includes(s)
     );
   });
@@ -291,6 +292,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
 
                 <h3 className="font-bold text-slate-900 text-sm">{local.clienteInstalacao}</h3>
+                {local.setor && local.setor.trim() && (
+                  <p className="mt-1 inline-flex items-center gap-1 text-xs font-black uppercase tracking-wide text-indigo-900 bg-indigo-100 border border-indigo-300 px-2 py-0.5 rounded-md">
+                    <MapPin className="w-3.5 h-3.5 text-indigo-700" />
+                    Localização: {local.setor}
+                  </p>
+                )}
                 <p className="text-xs text-slate-600 mt-1 flex items-start gap-1">
                   <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                   <span>
@@ -309,7 +316,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => onStartInstallation(local.gatiInstalacao)}
+                  onClick={() => onStartInstallation(local.id)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     local.status === 'instalado'
                       ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'

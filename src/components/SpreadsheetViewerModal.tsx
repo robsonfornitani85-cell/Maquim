@@ -19,6 +19,8 @@ import {
 import { NovoEquipamento, LocalDistribuicao, EquipamentoAnterior } from '../types';
 import { exportDistribuicaoToExcel, exportNovosEquipamentosToExcel, exportRetiradasToExcel, parseUploadedExcel } from '../utils/excelManager';
 import { anularInstalacao, PASSWORD_PROTECTION } from '../data/mockDatabase';
+import { DataTable, DataColumn } from './DataTable';
+import { normalizeSearch } from '../utils/validation';
 
 interface SpreadsheetViewerModalProps {
   isOpen: boolean;
@@ -26,9 +28,9 @@ interface SpreadsheetViewerModalProps {
   novosEquipamentos: NovoEquipamento[];
   locaisDistribuicao: LocalDistribuicao[];
   equipamentosAnteriores: EquipamentoAnterior[];
-  onSelectLocalParaInstalar: (gati: string) => void;
-  onUpdateOS?: (gati: string, numeroOS: string) => void;
-  onUpdateOSRetirada?: (gati: string, numeroOSRetirada: string) => void;
+  onSelectLocalParaInstalar: (localId: string) => void;
+  onUpdateOS?: (localId: string, numeroOS: string) => void;
+  onUpdateOSRetirada?: (localId: string, numeroOSRetirada: string) => void;
   onResetData?: () => void;
   onRefreshData?: () => void;
 }
@@ -47,8 +49,6 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'locais' | 'novos' | 'retiradas'>('locais');
   const [search, setSearch] = useState('');
-  const [secretariaFilter, setSecretariaFilter] = useState('todas');
-  const [osFilter, setOsFilter] = useState<'todas' | 'com_os' | 'sem_os'>('todas');
   const [resetFeedback, setResetFeedback] = useState(false);
   const [importFeedback, setImportFeedback] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -70,10 +70,17 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
         const gati = String(row['GATi Instalação'] || row['GATi'] || row['Gati'] || '').trim();
         const osInst = String(row['Nº OS Instalação'] || row['Nº Ordem de Serviço'] || row['Nº OS'] || row['OS'] || '').trim();
         const osRet = String(row['Nº OS Retirada'] || row['OS Retirada'] || row['OS Ret'] || '').trim();
-        if (gati) {
-          if (osInst && onUpdateOS) onUpdateOS(gati, osInst);
-          if (osRet && onUpdateOSRetirada) onUpdateOSRetirada(gati, osRet);
-          count++;
+        const id = String(row['ID'] || row['Id'] || '').trim();
+        const setorRow = String(row['Localização'] || row['Setor'] || '').trim().toUpperCase();
+        if (gati || id) {
+          const alvos = locaisDistribuicao.filter((l) =>
+            id ? l.id === id : l.gatiInstalacao === gati && (!setorRow || (l.setor || '').trim().toUpperCase() === setorRow)
+          );
+          alvos.forEach((l) => {
+            if (osInst && onUpdateOS) onUpdateOS(l.id, osInst);
+            if (osRet && onUpdateOSRetirada) onUpdateOSRetirada(l.id, osRet);
+          });
+          if (alvos.length) count++;
         }
       });
       setImportFeedback(`✓ ${count} locais atualizados com sucesso a partir da planilha!`);
@@ -90,6 +97,12 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
   if (!isOpen) return null;
 
   const handleReset = () => {
+    if (
+      !window.confirm(
+        'Recarregar as planilhas originais? As marcações de instalado/retirado feitas neste aparelho voltam ao estado original. As OSs do Histórico (com PDFs) são mantidas.'
+      )
+    )
+      return;
     if (onResetData) {
       onResetData();
       setResetFeedback(true);
@@ -104,18 +117,18 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
     setAnularModalOpen(true);
   };
 
-  const handleConfirmAnular = () => {
+  const handleConfirmAnular = async () => {
     if (!targetGati) return;
     if (passwordInput.trim() !== PASSWORD_PROTECTION) {
       setPasswordError(`Senha incorreta! A senha mestra de proteção é ${PASSWORD_PROTECTION}.`);
       return;
     }
 
-    const res = anularInstalacao(targetGati.gatiInstalacao, passwordInput);
+    const res = await anularInstalacao(targetGati.id, passwordInput);
     if (res.success) {
       setAnularSuccessMsg(res.message);
+      // Atualiza a tela SEM recarregar as planilhas (antes isso apagava todo o histórico de OSs)
       onRefreshData?.();
-      onResetData?.();
       setTimeout(() => {
         setAnularModalOpen(false);
         setTargetGati(null);
@@ -126,14 +139,255 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
     }
   };
 
-  // Secretarias únicas para filtro
-  const secretarias = Array.from(
-    new Set(locaisDistribuicao.map((l) => l.secretaria).filter(Boolean))
+  const busca = normalizeSearch(search);
+  const bate = (...vals: (string | undefined)[]) => !busca || vals.some((v) => normalizeSearch(v || '').includes(busca));
+
+  const locaisFiltrados = locaisDistribuicao.filter((l) =>
+    bate(l.gatiInstalacao, l.ordemServico, l.ordemServicoRetirada, l.clienteInstalacao, l.setor, l.endereco, l.bairro, l.responsavelLocal, l.secretaria, l.patrimonioInstalado)
+  );
+  const novosFiltrados = novosEquipamentos.filter((e) => bate(e.patrimonio, e.numeroSerie, e.modelo, e.ordemServico, e.gatiInstalacao));
+  const retiradasFiltradas = equipamentosAnteriores.filter((r) =>
+    bate(r.patrimonio, r.numeroSerie, r.ordemServicoRetirada, r.clienteInstalacao, r.localizacao, r.modelo, r.conectividadeIp)
   );
 
+  const colunasLocais: DataColumn<LocalDistribuicao>[] = [
+    { key: 'gati', label: 'GATi', value: (l) => l.gatiInstalacao, className: 'font-mono font-bold text-blue-700' },
+    {
+      key: 'localizacao',
+      label: 'Localização',
+      value: (l) => l.setor || '',
+      render: (l) =>
+        l.setor ? <span className="font-black uppercase text-indigo-900 bg-indigo-50 px-1.5 py-0.5 rounded">{l.setor}</span> : <span className="text-slate-300">—</span>,
+    },
+    {
+      key: 'osInst',
+      label: 'Nº OS Instalação',
+      value: (l) => l.ordemServico || '',
+      render: (local) => (
+        <input
+          type="text"
+          inputMode="numeric"
+          value={local.ordemServico || ''}
+          placeholder="Lançar OS Inst..."
+          onChange={(e) => onUpdateOS?.(local.id, e.target.value)}
+          className={`w-28 px-2 py-1 text-xs font-mono font-bold rounded-lg border transition-all ${
+            local.ordemServico && local.ordemServico.trim()
+              ? 'bg-blue-50/80 border-blue-300 text-blue-900 shadow-xs'
+              : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 focus:bg-white focus:border-blue-500'
+          }`}
+        />
+      ),
+    },
+    {
+      key: 'osRet',
+      label: 'Nº OS Retirada',
+      value: (l) => l.ordemServicoRetirada || '',
+      render: (local) => (
+        <input
+          type="text"
+          inputMode="numeric"
+          value={local.ordemServicoRetirada || ''}
+          placeholder="Lançar OS Ret..."
+          onChange={(e) => onUpdateOSRetirada?.(local.id, e.target.value)}
+          className={`w-28 px-2 py-1 text-xs font-mono font-bold rounded-lg border transition-all ${
+            local.ordemServicoRetirada && local.ordemServicoRetirada.trim()
+              ? 'bg-amber-50/80 border-amber-300 text-amber-900 shadow-xs'
+              : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 focus:bg-white focus:border-amber-500'
+          }`}
+        />
+      ),
+    },
+    { key: 'secretaria', label: 'Secretaria', value: (l) => l.secretaria, filter: 'select', className: 'font-semibold text-slate-800' },
+    {
+      key: 'cliente',
+      label: 'Cliente / Unidade',
+      value: (l) => l.clienteInstalacao,
+      render: (l) => (
+        <>
+          <p className="font-bold text-slate-900">{l.clienteInstalacao}</p>
+          <p className="text-[11px] text-slate-500">Resp: {l.responsavelLocal}</p>
+        </>
+      ),
+    },
+    {
+      key: 'endereco',
+      label: 'Endereço & Bairro',
+      value: (l) => `${l.endereco} ${l.bairro}`,
+      render: (l) => (
+        <>
+          <p className="text-slate-800">{l.endereco}</p>
+          <p className="text-[11px] text-slate-500">{l.bairro}</p>
+        </>
+      ),
+    },
+    { key: 'modelo', label: 'Modelo Previsto', value: (l) => `${l.modeloPrevisto} (${l.tipoEquipamento})`, filter: 'select', className: 'font-mono font-medium' },
+    {
+      key: 'status',
+      label: 'Status',
+      value: (l) => (l.status === 'instalado' ? 'Instalado' : 'Pendente'),
+      filter: 'select',
+      render: (local) =>
+        local.status === 'instalado' ? (
+          <div className="space-y-1">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+              <CheckCircle2 className="w-3 h-3" />
+              Instalado (#{local.patrimonioInstalado})
+            </span>
+            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+              <Lock className="w-3 h-3 text-emerald-700" />
+              <span>Bloqueado</span>
+            </div>
+          </div>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+            <Clock className="w-3 h-3" />
+            Pendente
+          </span>
+        ),
+    },
+    {
+      key: 'acao',
+      label: 'Ação',
+      sortable: false,
+      filter: false,
+      className: 'text-right',
+      render: (local) =>
+        local.status === 'instalado' ? (
+          <button
+            type="button"
+            onClick={() => handleOpenAnularModal(local)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold text-[11px] rounded-lg transition-colors shadow-xs whitespace-nowrap"
+          >
+            <Unlock className="w-3 h-3" />
+            Anular / Desbloquear
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              onSelectLocalParaInstalar(local.id);
+              onClose();
+            }}
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] rounded-lg transition-colors shadow-xs whitespace-nowrap"
+          >
+            Instalar Aqui
+          </button>
+        ),
+    },
+  ];
+
+  const colunasNovos: DataColumn<NovoEquipamento>[] = [
+    { key: 'pat', label: 'Patrimônio', value: (e) => e.patrimonio, render: (e) => <span className="font-mono font-bold text-blue-700">#{e.patrimonio}</span> },
+    {
+      key: 'os',
+      label: 'Nº OS',
+      value: (e) => e.ordemServico || '',
+      render: (item) =>
+        item.ordemServico ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-blue-50 text-blue-800 border border-blue-200">
+            #{item.ordemServico}
+          </span>
+        ) : (
+          <span className="text-slate-400 italic text-[11px]">Pendente</span>
+        ),
+    },
+    { key: 'serie', label: 'Nº de Série', value: (e) => e.numeroSerie, className: 'font-mono text-slate-800' },
+    { key: 'modelo', label: 'Modelo', value: (e) => e.modelo, filter: 'select', className: 'font-bold text-slate-800' },
+    {
+      key: 'tipo',
+      label: 'Tipo',
+      value: (e) => e.tipo,
+      filter: 'select',
+      render: (item) => (
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${item.tipo === 'Color' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
+          {item.tipo}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      value: (e) => (e.status === 'instalado' ? 'Instalado' : 'Disponível na van'),
+      filter: 'select',
+      render: (item) =>
+        item.status === 'instalado' ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+            <CheckCircle2 className="w-3 h-3" /> Instalado
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+            Disponível na Van
+          </span>
+        ),
+    },
+    { key: 'gati', label: 'Destino / GATi', value: (e) => e.gatiInstalacao || '', className: 'font-mono text-slate-600' },
+  ];
+
+  const colunasRetiradas: DataColumn<EquipamentoAnterior>[] = [
+    { key: 'pat', label: 'Patrimônio', value: (r) => r.patrimonio, render: (r) => <span className="font-mono font-bold text-amber-700">#{r.patrimonio}</span> },
+    {
+      key: 'os',
+      label: 'Nº OS Retirada',
+      value: (r) => r.ordemServicoRetirada || '',
+      render: (item) =>
+        item.ordemServicoRetirada ? (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
+            #{item.ordemServicoRetirada}
+          </span>
+        ) : (
+          <span className="text-slate-400 italic text-[11px]">Pendente</span>
+        ),
+    },
+    { key: 'serie', label: 'Nº de Série', value: (r) => r.numeroSerie, className: 'font-mono text-slate-800' },
+    { key: 'modelo', label: 'Modelo', value: (r) => r.modelo, filter: 'select', className: 'font-bold text-slate-800' },
+    { key: 'tipo', label: 'Tipo', value: (r) => r.tipoEquipamento || 'Mono', filter: 'select' },
+    { key: 'gati', label: 'GATi', value: (r) => r.gatiInstalacao, className: 'font-mono' },
+    { key: 'cliente', label: 'Cliente', value: (r) => r.clienteInstalacao, className: 'font-semibold text-slate-800' },
+    {
+      key: 'localizacao',
+      label: 'Localização',
+      value: (r) => r.localizacao,
+      render: (r) => <span className="font-black uppercase text-indigo-900">{r.localizacao}</span>,
+    },
+    { key: 'ip', label: 'IP', value: (r) => r.conectividadeIp, className: 'font-mono' },
+    {
+      key: 'contadores',
+      label: 'Contadores Retirada',
+      filter: false,
+      sortable: false,
+      render: (item) =>
+        item.status === 'retirado' ? (
+          <div className="space-y-0.5 font-mono">
+            {item.dataRetirada && <p className="text-[10px] text-emerald-800 font-bold">Data: {item.dataRetirada}</p>}
+            {item.contadorMono && <p className="text-[11px] text-slate-700">Mono: <strong>{item.contadorMono}</strong></p>}
+            {item.contadorColor && <p className="text-[11px] text-purple-700">Color: <strong>{item.contadorColor}</strong></p>}
+            {item.contadorFinal && <p className="text-[10px] text-slate-500">Total: {item.contadorFinal}</p>}
+          </div>
+        ) : (
+          <span className="text-slate-400">—</span>
+        ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      value: (r) => (r.status === 'retirado' ? 'Retirado' : r.status === 'nao_retirado' ? 'Não retirado' : 'A retirar'),
+      filter: 'select',
+      render: (item) =>
+        item.status === 'retirado' ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 whitespace-nowrap">
+            <CheckCircle2 className="w-3 h-3" /> Retirado {item.dataRetirada ? `(${item.dataRetirada})` : ''}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 whitespace-nowrap">
+            {item.status === 'nao_retirado' ? 'Não retirado' : 'A Retirar'}
+          </span>
+        ),
+    },
+  ];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-3xl max-w-5xl w-full h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs sm:p-4">
+      <div className="bg-white sm:rounded-3xl max-w-6xl w-full h-[100dvh] sm:h-[90vh] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
           <div className="flex items-center gap-3">
@@ -257,380 +511,34 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
           </div>
 
           <div className="flex flex-wrap gap-2 items-center">
-            {activeTab === 'locais' && (
-              <>
-                <select
-                  value={secretariaFilter}
-                  onChange={(e) => setSecretariaFilter(e.target.value)}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-hidden"
-                >
-                  <option value="todas">Todas as Secretarias</option>
-                  {secretarias.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={osFilter}
-                  onChange={(e) => setOsFilter(e.target.value as any)}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-hidden"
-                >
-                  <option value="todas">Status OS (Todas)</option>
-                  <option value="sem_os">Sem OS (Em branco)</option>
-                  <option value="com_os">Com OS Lançada</option>
-                </select>
-              </>
-            )}
-
-            <div className="relative min-w-[220px]">
+            <div className="relative min-w-[220px] flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filtrar por qualquer termo..."
+                placeholder="Buscar em todas as colunas..."
                 className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
         </div>
 
-        {/* Conteúdo da Tabela */}
-        <div className="flex-1 overflow-auto p-4 bg-slate-50/50">
-          {/* ABA 1: DISTRIBUIÇÃO LORENA */}
+        {/* Conteúdo da Tabela: toque no título da coluna para ordenar; use a linha de filtros para filtrar por coluna */}
+        <div className="flex-1 overflow-auto p-3 sm:p-4 bg-slate-50/50">
           {activeTab === 'locais' && (
-            <div className="space-y-3">
-              <div className="px-4 py-2.5 bg-blue-50/80 border border-blue-200/80 rounded-xl text-xs text-blue-950 flex flex-wrap items-center justify-between gap-2 shadow-xs">
-                <div>
-                  <span className="font-bold">Lançamento de Ordens de Serviço em Tempo Real:</span>
-                  <span className="text-slate-600 ml-1">
-                    Digite ou altere o número da OS de cada endereço diretamente na coluna abaixo. O dado é salvo instantaneamente e carregado no formulário do técnico.
-                  </span>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
-                  {locaisDistribuicao.filter(l => l.ordemServico && l.ordemServico.trim()).length} de {locaisDistribuicao.length} com OS
-                </span>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
-                      <th className="p-3">GATi</th>
-                      <th className="p-3">Nº OS Instalação</th>
-                      <th className="p-3">Nº OS Retirada</th>
-                      <th className="p-3">Secretaria</th>
-                      <th className="p-3">Cliente / Unidade</th>
-                      <th className="p-3">Endereço & Bairro</th>
-                      <th className="p-3">Modelo Previsto</th>
-                      <th className="p-3">Status & Proteção</th>
-                      <th className="p-3 text-right">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {locaisDistribuicao
-                      .filter((l) => {
-                        if (secretariaFilter !== 'todas' && l.secretaria !== secretariaFilter) return false;
-                        if (osFilter === 'sem_os' && l.ordemServico && l.ordemServico.trim()) return false;
-                        if (osFilter === 'com_os' && (!l.ordemServico || !l.ordemServico.trim())) return false;
-                        if (!search) return true;
-                        const s = search.toLowerCase();
-                        return (
-                          l.gatiInstalacao.includes(s) ||
-                          (l.ordemServico && l.ordemServico.toLowerCase().includes(s)) ||
-                          (l.ordemServicoRetirada && l.ordemServicoRetirada.toLowerCase().includes(s)) ||
-                          l.clienteInstalacao.toLowerCase().includes(s) ||
-                          l.endereco.toLowerCase().includes(s) ||
-                          l.bairro.toLowerCase().includes(s) ||
-                          l.responsavelLocal.toLowerCase().includes(s)
-                        );
-                      })
-                      .map((local) => (
-                        <tr key={local.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-3 font-mono font-bold text-blue-700">{local.gatiInstalacao}</td>
-                          <td className="p-3">
-                            <input
-                              type="text"
-                              value={local.ordemServico || ''}
-                              placeholder="Lançar OS Inst..."
-                              onChange={(e) => onUpdateOS?.(local.gatiInstalacao, e.target.value)}
-                              className={`w-28 px-2 py-1 text-xs font-mono font-bold rounded-lg border transition-all ${
-                                local.ordemServico && local.ordemServico.trim()
-                                  ? 'bg-blue-50/80 border-blue-300 text-blue-900 shadow-xs'
-                                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 focus:bg-white focus:border-blue-500'
-                              }`}
-                            />
-                          </td>
-                          <td className="p-3">
-                            <input
-                              type="text"
-                              value={local.ordemServicoRetirada || ''}
-                              placeholder="Lançar OS Ret..."
-                              onChange={(e) => onUpdateOSRetirada?.(local.gatiInstalacao, e.target.value)}
-                              className={`w-28 px-2 py-1 text-xs font-mono font-bold rounded-lg border transition-all ${
-                                local.ordemServicoRetirada && local.ordemServicoRetirada.trim()
-                                  ? 'bg-amber-50/80 border-amber-300 text-amber-900 shadow-xs'
-                                  : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 focus:bg-white focus:border-amber-500'
-                              }`}
-                            />
-                          </td>
-                          <td className="p-3 font-semibold text-slate-800">{local.secretaria}</td>
-                          <td className="p-3">
-                            <p className="font-bold text-slate-900">{local.clienteInstalacao}</p>
-                            <p className="text-[11px] text-slate-500">Resp: {local.responsavelLocal}</p>
-                          </td>
-                          <td className="p-3">
-                            <p className="text-slate-800">{local.endereco}</p>
-                            <p className="text-[11px] text-slate-500">{local.bairro}</p>
-                          </td>
-                          <td className="p-3 font-mono font-medium">
-                            {local.modeloPrevisto} ({local.tipoEquipamento})
-                          </td>
-                          <td className="p-3">
-                            {local.status === 'instalado' ? (
-                              <div className="space-y-1">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Instalado (#{local.patrimonioInstalado})
-                                </span>
-                                <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
-                                  <Lock className="w-3 h-3 text-emerald-700" />
-                                  <span>Bloqueado (223622)</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                                <Clock className="w-3 h-3" />
-                                Pendente
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 text-right">
-                            {local.status === 'instalado' ? (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenAnularModal(local)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold text-[11px] rounded-lg transition-colors shadow-xs"
-                                title="Anular preenchimento de teste e liberar patrimônio para a van com senha 223622"
-                              >
-                                <Unlock className="w-3 h-3" />
-                                Anular / Desbloquear
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onSelectLocalParaInstalar(local.gatiInstalacao);
-                                  onClose();
-                                }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[11px] rounded-lg transition-colors shadow-xs"
-                              >
-                                Instalar Aqui
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable
+              rows={locaisFiltrados}
+              columns={colunasLocais}
+              rowKey={(l) => l.id}
+              rowClassName={(l) => (l.status === 'instalado' ? 'bg-emerald-50/30' : '')}
+            />
           )}
-
-          {/* ABA 2: NOVOS PATRIMÔNIOS */}
           {activeTab === 'novos' && (
-            <div className="space-y-3">
-              <div className="px-4 py-2.5 bg-blue-50/80 border border-blue-200/80 rounded-xl text-xs text-blue-950 flex flex-wrap items-center justify-between gap-2 shadow-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                  <span className="font-bold">234 Equipamentos Novos Vinculados com Nº de OS Oficial</span>
-                </div>
-                <span className="text-blue-700 font-medium text-[11px]">
-                  Ao escanear ou selecionar o patrimônio na van, a OS correspondente é preenchida automaticamente no formulário.
-                </span>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
-                      <th className="p-3">Patrimônio</th>
-                      <th className="p-3">Nº Ordem de Serviço (OS)</th>
-                      <th className="p-3">Nº de Série</th>
-                      <th className="p-3">Modelo</th>
-                      <th className="p-3">Tipo</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Destino / GATi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {novosEquipamentos
-                      .filter((e) => {
-                        if (!search) return true;
-                        const s = search.toLowerCase();
-                        return (
-                          e.patrimonio.includes(s) ||
-                          e.numeroSerie.toLowerCase().includes(s) ||
-                          e.modelo.toLowerCase().includes(s) ||
-                          (e.ordemServico && e.ordemServico.toLowerCase().includes(s))
-                        );
-                      })
-                      .map((item) => (
-                        <tr key={item.patrimonio} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-3 font-mono font-bold text-blue-700">#{item.patrimonio}</td>
-                          <td className="p-3 font-mono font-bold">
-                            {item.ordemServico ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                                #{item.ordemServico}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 italic text-[11px]">Pendente</span>
-                            )}
-                          </td>
-                          <td className="p-3 font-mono text-slate-800">{item.numeroSerie}</td>
-                          <td className="p-3 font-bold text-slate-800">{item.modelo}</td>
-                          <td className="p-3">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                item.tipo === 'Color'
-                                  ? 'bg-purple-100 text-purple-700'
-                                  : 'bg-slate-100 text-slate-700'
-                              }`}
-                            >
-                              {item.tipo}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            {item.status === 'instalado' ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                <CheckCircle2 className="w-3 h-3" /> Instalado
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                                Disponível na Van
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 font-mono text-slate-600">
-                            {item.gatiInstalacao ? `GATi: ${item.gatiInstalacao}` : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable rows={novosFiltrados} columns={colunasNovos} rowKey={(e, i) => `${e.patrimonio}-${i}`} />
           )}
-
-          {/* ABA 3: RETIRADAS CONTRATO ANTERIOR */}
           {activeTab === 'retiradas' && (
-            <div className="space-y-3">
-              <div className="px-4 py-2.5 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-950 flex flex-wrap items-center justify-between gap-2 shadow-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-amber-600 animate-pulse" />
-                  <span className="font-bold">260 Equipamentos Anteriores • 170 com OS de Retirada Oficial Vinculada</span>
-                </div>
-                <span className="text-amber-800 font-medium text-[11px]">
-                  Ao selecionar o GATi ou patrimônio anterior, a OS de retirada correspondente é preenchida automaticamente.
-                </span>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
-                      <th className="p-3">Patrimônio</th>
-                      <th className="p-3">Nº OS Retirada</th>
-                      <th className="p-3">Nº de Série</th>
-                      <th className="p-3">Modelo</th>
-                      <th className="p-3">Cliente / Local</th>
-                      <th className="p-3">Contadores Retirada</th>
-                      <th className="p-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {equipamentosAnteriores
-                      .filter((r) => {
-                        if (!search) return true;
-                        const s = search.toLowerCase();
-                        return (
-                          r.patrimonio.includes(s) ||
-                          r.numeroSerie.toLowerCase().includes(s) ||
-                          (r.ordemServicoRetirada && r.ordemServicoRetirada.toLowerCase().includes(s)) ||
-                          r.clienteInstalacao.toLowerCase().includes(s) ||
-                          r.localizacao.toLowerCase().includes(s)
-                        );
-                      })
-                      .map((item) => (
-                        <tr key={item.patrimonio} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-3 font-mono font-bold text-amber-700">#{item.patrimonio}</td>
-                          <td className="p-3 font-mono font-bold">
-                            {item.ordemServicoRetirada ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
-                                #{item.ordemServicoRetirada}
-                              </span>
-                            ) : (
-                              <span className="text-slate-400 italic text-[11px]">Pendente</span>
-                            )}
-                          </td>
-                          <td className="p-3 font-mono text-slate-800">{item.numeroSerie}</td>
-                          <td className="p-3 font-bold text-slate-800">
-                            <p>{item.modelo}</p>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                              item.tipoEquipamento === 'Color' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {item.tipoEquipamento || 'Mono'}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <p className="font-semibold text-slate-800">{item.clienteInstalacao}</p>
-                            <p className="text-[11px] text-slate-500">{item.localizacao}</p>
-                          </td>
-                          <td className="p-3 font-mono text-xs">
-                            {item.status === 'retirado' ? (
-                              <div className="space-y-0.5">
-                                {item.dataRetirada && (
-                                  <p className="text-[10px] text-emerald-800 font-bold">Data: {item.dataRetirada}</p>
-                                )}
-                                {item.contadorMono && (
-                                  <p className="text-[11px] text-slate-700">Mono: <strong>{item.contadorMono}</strong></p>
-                                )}
-                                {item.contadorColor && (
-                                  <p className="text-[11px] text-purple-700">Color: <strong>{item.contadorColor}</strong></p>
-                                )}
-                                {item.contadorFinal && (
-                                  <p className="text-[10px] text-slate-500">Total: {item.contadorFinal}</p>
-                                )}
-                                {item.caboEnergiaRetirado && (
-                                  <p className="text-[10px] text-slate-600">Cabo Energia: Sim • Bandeja: Sim</p>
-                                )}
-                                {item.descricaoAvarias && (
-                                  <p className="text-[10px] text-slate-600 font-semibold">{item.descricaoAvarias}</p>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            {item.status === 'retirado' ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                <CheckCircle2 className="w-3 h-3" /> Retirado {item.dataRetirada ? `(${item.dataRetirada})` : ''}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                                A Retirar
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <DataTable rows={retiradasFiltradas} columns={colunasRetiradas} rowKey={(r, i) => `${r.patrimonio}-${i}`} />
           )}
         </div>
 

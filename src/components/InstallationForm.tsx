@@ -34,6 +34,8 @@ import {
   Eye,
   Image as ImageIcon,
   Sparkles,
+  WifiOff,
+  Clock,
 } from 'lucide-react';
 import {
   NovoEquipamento,
@@ -52,7 +54,7 @@ import {
 import { SignaturePad } from './SignaturePad';
 import { CameraCaptureModal } from './CameraCaptureModal';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
-import { SmartIPInput } from './SmartIPInput';
+import { IPKeypadInput } from './IPKeypadInput';
 import { compressMobilePhoto } from '../utils/imageCompressor';
 import {
   downloadOSPDF,
@@ -84,9 +86,10 @@ interface InstallationFormProps {
   locaisDistribuicao: LocalDistribuicao[];
   equipamentosAnteriores: EquipamentoAnterior[];
   tecnicoPadrao: string;
-  onSaveOS: (os: OrdemServico) => void;
+  onSaveOS: (os: OrdemServico) => Promise<void> | void;
   onCancel?: () => void;
-  preSelectedGati?: string;
+  preSelectedLocalId?: string;
+  online?: boolean;
 }
 
 export const InstallationForm: React.FC<InstallationFormProps> = ({
@@ -96,7 +99,8 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   tecnicoPadrao,
   onSaveOS,
   onCancel,
-  preSelectedGati,
+  preSelectedLocalId,
+  online = true,
 }) => {
   // Step indicator: 1 = Equipamento & Local, 2 = Instalação Técnica, 3 = Retirada, 4 = Validação Cliente, 5 = Sucesso/PDF
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -111,7 +115,8 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   const [modelo, setModelo] = useState('');
 
   // Formulário - Local de Instalação (GATi)
-  const [gatiInstalacao, setGatiInstalacao] = useState(preSelectedGati || '');
+  const [gatiInstalacao, setGatiInstalacao] = useState('');
+  const [selectedLocalId, setSelectedLocalId] = useState('');
   const [gatiFaturamento, setGatiFaturamento] = useState('');
   const [ordemServico, setOrdemServico] = useState('');
   const [clienteInstalacao, setClienteInstalacao] = useState('');
@@ -197,12 +202,6 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   const DRAFT_STORAGE_KEY = 'maquim_installation_draft_v6';
   const [draftRestored, setDraftRestored] = useState(false);
 
-  // Manipulador de foco em mobile: rola suavemente para o centro da tela, evitando ser coberto pelo teclado virtual
-  const handleFieldFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setTimeout(() => {
-      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 180);
-  };
 
   // Captura e compressão direta da foto do relatório impresso
   const handleRelatorioFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -243,13 +242,19 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       if (!saved) return;
       const data = JSON.parse(saved);
       if (data && typeof data === 'object') {
-        if (data.currentStep && data.currentStep >= 1 && data.currentStep <= 5) {
+        // Etapa 5 = OS já salva: não há o que restaurar (a OS está no Histórico)
+        if (data.currentStep === 5) {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+          return;
+        }
+        if (data.currentStep && data.currentStep >= 1 && data.currentStep <= 4) {
           setCurrentStep(data.currentStep);
         }
         if (data.patrimonio) setPatrimonio(data.patrimonio);
         if (data.numeroSerie) setNumeroSerie(data.numeroSerie);
         if (data.modelo) setModelo(data.modelo);
         if (data.gatiInstalacao) setGatiInstalacao(data.gatiInstalacao);
+        if (data.selectedLocalId) setSelectedLocalId(data.selectedLocalId);
         if (data.gatiFaturamento) setGatiFaturamento(data.gatiFaturamento);
         if (data.ordemServico) setOrdemServico(data.ordemServico);
         if (data.clienteInstalacao) setClienteInstalacao(data.clienteInstalacao);
@@ -307,12 +312,14 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   // Salvamento contínuo em LocalStorage
   useEffect(() => {
     if (!patrimonio && !gatiInstalacao && currentStep === 1) return;
+    if (currentStep === 5) return; // OS já salva no Histórico: rascunho não é mais necessário
     const draftData = {
       currentStep,
       patrimonio,
       numeroSerie,
       modelo,
       gatiInstalacao,
+      selectedLocalId,
       gatiFaturamento,
       ordemServico,
       clienteInstalacao,
@@ -381,6 +388,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     numeroSerie,
     modelo,
     gatiInstalacao,
+    selectedLocalId,
     gatiFaturamento,
     ordemServico,
     clienteInstalacao,
@@ -486,45 +494,137 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       setPatrimonio(item.patrimonio);
       setNumeroSerie(item.numeroSerie);
       setModelo(item.modelo);
-      if (item.ordemServico) {
-        setOrdemServico(item.ordemServico);
-      }
+      // Nº da OS de instalação vem do vínculo patrimônio → OS (não é digitado pelo técnico)
+      setOrdemServico(item.ordemServico ? item.ordemServico.trim() : '');
+    } else {
+      setNumeroSerie('');
+      setModelo('');
+      setOrdemServico('');
     }
   };
 
-  // Efeito ao selecionar ou mudar o GATi Instalação: auto-completa endereço, cliente, bairro, etc.
+  // Todas as linhas da planilha com este GATi (um mesmo prédio pode ter várias localizações)
+  const locaisDoGati = React.useMemo(() => {
+    const g = gatiInstalacao.trim();
+    if (!g) return [] as LocalDistribuicao[];
+    return locaisDistribuicao.filter((l) => l.gatiInstalacao.trim() === g);
+  }, [gatiInstalacao, locaisDistribuicao]);
+
+  const localSelecionado = React.useMemo(
+    () => locaisDistribuicao.find((l) => l.id === selectedLocalId),
+    [locaisDistribuicao, selectedLocalId]
+  );
+
+  // Equipamentos do contrato anterior instalados neste GATi (com a localização de cada um)
+  const anterioresDoGati = React.useMemo(() => {
+    const g = gatiInstalacao.trim();
+    if (!g) return [] as EquipamentoAnterior[];
+    const seen = new Set<string>();
+    return equipamentosAnteriores.filter((r) => {
+      if (r.gatiInstalacao.trim() !== g || seen.has(r.patrimonio)) return false;
+      seen.add(r.patrimonio);
+      return true;
+    });
+  }, [gatiInstalacao, equipamentosAnteriores]);
+
+  const normLoc = (v?: string) => normalizeSearch(v || '').replace(/[^a-z0-9]/g, '');
+  const anteriorDaLocalizacao = (loc?: string) => {
+    const n = normLoc(loc);
+    if (!n) return undefined;
+    return (
+      anterioresDoGati.find((r) => normLoc(r.localizacao) === n) ||
+      anterioresDoGati.find((r) => {
+        const rn = normLoc(r.localizacao);
+        return rn && (rn.includes(n) || n.includes(rn));
+      })
+    );
+  };
+
+  const selectLocal = (local: LocalDistribuicao) => {
+    setSelectedLocalId(local.id);
+    setGatiInstalacao(local.gatiInstalacao);
+    setClienteInstalacao(local.clienteInstalacao);
+    setGatiFaturamento(local.gatiFaturamento || '');
+    setSecretaria(local.secretaria);
+    setEndereco(local.endereco);
+    setBairro(local.bairro);
+    setSetor(local.setor || '');
+    setResponsavelLocalCadastrado(local.responsavelLocal);
+    if (local.ordemServicoRetirada) {
+      setOrdemServicoRetirada(local.ordemServicoRetirada.trim());
+    }
+    setErrors((prev) => {
+      const { localizacao, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  // Ao digitar o GATi: preenche os dados do prédio. Se houver uma única localização, já seleciona.
   const handleSelectGATi = (gati: string) => {
     setGatiInstalacao(gati);
+    setSelectedLocalId('');
     const clean = gati.trim();
-    if (!clean) return;
-    const local = locaisDistribuicao.find(
-      (l) => l.gatiInstalacao.trim() === clean
-    );
-    if (local) {
-      setOrdemServico(local.ordemServico ? local.ordemServico.trim() : '');
-      if (local.ordemServicoRetirada) {
-        setOrdemServicoRetirada(local.ordemServicoRetirada.trim());
-      }
-      setClienteInstalacao(local.clienteInstalacao);
-      setGatiFaturamento(local.gatiFaturamento || '');
-      setSecretaria(local.secretaria);
-      setEndereco(local.endereco);
-      setBairro(local.bairro);
-      setSetor(local.setor || '');
-      setResponsavelLocalCadastrado(local.responsavelLocal);
-      // Pre-popula o nome do responsável se ainda não digitado
-      if (!responsavelNome) {
-        setResponsavelNome(local.responsavelLocal);
-      }
+    const matches = clean ? locaisDistribuicao.filter((l) => l.gatiInstalacao.trim() === clean) : [];
+    if (matches.length === 0) {
+      setClienteInstalacao('');
+      setSecretaria('');
+      setEndereco('');
+      setBairro('');
+      setSetor('');
+      setResponsavelLocalCadastrado('');
+      return;
     }
+    const pendentes = matches.filter((l) => l.status !== 'instalado');
+    if (matches.length === 1 || pendentes.length === 1) {
+      selectLocal(pendentes[0] || matches[0]);
+      return;
+    }
+    const first = matches[0];
+    setClienteInstalacao(first.clienteInstalacao);
+    setGatiFaturamento(first.gatiFaturamento || '');
+    setSecretaria(first.secretaria);
+    setEndereco(first.endereco);
+    setBairro(first.bairro);
+    setSetor('');
+    setResponsavelLocalCadastrado(first.responsavelLocal);
   };
 
-  // Inicializa GATi pré-selecionado se passado
+  // Inicializa o local pré-selecionado (botão "Instalar aqui" da planilha / visão geral)
   useEffect(() => {
-    if (preSelectedGati) {
-      handleSelectGATi(preSelectedGati);
-    }
-  }, [preSelectedGati]);
+    if (!preSelectedLocalId) return;
+    const local = locaisDistribuicao.find((l) => l.id === preSelectedLocalId);
+    if (local) selectLocal(local);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preSelectedLocalId, locaisDistribuicao.length]);
+
+  // OS vinculadas (somente leitura para o técnico)
+  const equipamentoNovoSelecionado = novosEquipamentos.find((e) => e.patrimonio === patrimonio.trim());
+  const osInstalacaoVinculada =
+    (equipamentoNovoSelecionado?.ordemServico || '').trim() ||
+    ordemServico.trim() ||
+    (localSelecionado?.ordemServico || '').trim();
+  const equipamentoAnteriorSelecionado = equipamentosAnteriores.find(
+    (r) => r.patrimonio === patrimonioAnterior.trim()
+  );
+  const osRetiradaVinculada =
+    (equipamentoAnteriorSelecionado?.ordemServicoRetirada || '').trim() ||
+    ordemServicoRetirada.trim() ||
+    (localSelecionado?.ordemServicoRetirada || '').trim();
+
+  // Sugestões para o teclado de IP
+  const ipSugerido = (equipamentoAnteriorSelecionado?.conectividadeIp || anteriorDaLocalizacao(setor)?.conectividadeIp || '').trim();
+  const prefixosIP = React.useMemo(() => {
+    const count: Record<string, number> = {};
+    anterioresDoGati.forEach((r) => {
+      const ip = (r.conectividadeIp || '').trim();
+      if (isValidIPv4(ip)) {
+        const pre = ip.split('.').slice(0, 3).join('.');
+        count[pre] = (count[pre] || 0) + 1;
+      }
+    });
+    const lista = Object.entries(count).sort((a, b) => b[1] - a[1]).map(([p]) => p);
+    return (lista.length ? lista : ['192.168.15', '192.168.1', '192.168.0']).slice(0, 3);
+  }, [anterioresDoGati]);
 
   // Efeito ao selecionar Patrimônio Anterior: auto-completa Série e Modelo anteriores
   const handleSelectPatrimonioAnterior = (patAnt: string) => {
@@ -546,9 +646,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       setNumeroSerieAnterior(ret.numeroSerie);
       setModeloAnterior(ret.modelo);
       setLocalizacaoAnterior(ret.localizacao || '');
-      if (ret.ordemServicoRetirada) {
-        setOrdemServicoRetirada(ret.ordemServicoRetirada.trim());
-      }
+      setOrdemServicoRetirada((ret.ordemServicoRetirada || localSelecionado?.ordemServicoRetirada || '').trim());
       // Detecção inteligente de equipamento Color vs Mono
       const modelUpper = (ret.modelo || '').toUpperCase();
       const isColor =
@@ -581,6 +679,9 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       }
       if (!clienteInstalacao.trim()) {
         newErrors.clienteInstalacao = 'Nome da unidade/cliente de instalação não informado.';
+      }
+      if (locaisDoGati.length > 1 && !selectedLocalId) {
+        newErrors.localizacao = 'Este local tem várias localizações. Toque na localização onde o equipamento está sendo instalado.';
       }
     } else if (step === 2) {
       if (!tipoConexao) {
@@ -661,13 +762,13 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       }
     } else if (step === 4) {
       if (!responsavelNome.trim()) {
-        newErrors.responsavelNome = 'Nome e sobrenome do responsável do local são obrigatórios.';
-      } else if (responsavelNome.trim().split(' ').length < 2) {
+        newErrors.responsavelNome = 'Informe o nome e sobrenome do responsável que acompanhou e validou o serviço.';
+      } else if (responsavelNome.trim().split(/\s+/).length < 2) {
         newErrors.responsavelNome = 'Informe nome e sobrenome completos.';
       }
 
       if (!responsavelCPF.trim()) {
-        newErrors.responsavelCPF = 'CPF do responsável é obrigatório.';
+        newErrors.responsavelCPF = 'Informe o CPF do responsável que acompanhou e validou o serviço.';
       } else if (!isValidCPF(responsavelCPF)) {
         newErrors.responsavelCPF = 'CPF inválido. Confira os 11 dígitos.';
       }
@@ -678,7 +779,15 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const ok = Object.keys(newErrors).length === 0;
+    if (!ok) {
+      // Leva o técnico direto ao primeiro campo com problema
+      setTimeout(() => {
+        const el = document.querySelector('[data-erro="true"], .text-red-500');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+    }
+    return ok;
   };
 
   const handleNext = () => {
@@ -688,17 +797,21 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     }
   };
 
+  const [salvando, setSalvando] = useState(false);
+  const [erroSalvar, setErroSalvar] = useState('');
+
   const handlePrev = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Submissão Final do Formulário
-  const handleSubmit = () => {
-    if (!validateStep(4)) return;
+  const handleSubmit = async () => {
+    if (!validateStep(4) || salvando) return;
 
-    const osNumber = ordemServico.trim();
-    const osRetNumber = ordemServicoRetirada.trim();
+    // Números de OS sempre vindos do vínculo da planilha (patrimônio → OS)
+    const osNumber = osInstalacaoVinculada;
+    const osRetNumber = osRetiradaVinculada;
 
     // Formatação dos contadores
     let totalContadorFinal = contadorPaginasFinal.trim();
@@ -720,6 +833,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       dataRegistro: new Date().toISOString(),
       dataInstalacao,
       tecnicoNome,
+      localId: selectedLocalId || undefined,
       gatiInstalacao,
       gatiFaturamento,
       secretaria,
@@ -761,27 +875,37 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       responsavelNome,
       responsavelCPF,
       assinaturaClienteBase64,
-      usuariosTreinados: usuariosTreinados.length > 0 ? usuariosTreinados : (responsavelNome ? [responsavelNome] : undefined),
+      usuariosTreinados: usuariosTreinados.length > 0 ? usuariosTreinados : undefined,
       observacoes,
       enviadoEmail: false,
       emailDestinatario: MAQUIM_EMAIL_DESTINATARIO,
     };
 
-    // Atualiza número da OS de instalação na planilha
-    if (osNumber && gatiInstalacao) {
-      updateLocalOrdemServico(gatiInstalacao, osNumber);
+    // Atualiza número da OS na linha exata da planilha (GATi + localização)
+    if (osNumber && selectedLocalId) {
+      updateLocalOrdemServico(selectedLocalId, osNumber);
     }
-    // Atualiza número da OS de retirada na planilha se preenchido
     if (substituiAnterior) {
-      if (osRetNumber && gatiInstalacao) {
-        updateLocalOrdemServicoRetirada(gatiInstalacao, osRetNumber);
+      if (osRetNumber && selectedLocalId) {
+        updateLocalOrdemServicoRetirada(selectedLocalId, osRetNumber);
       }
       if (osRetNumber && patrimonioAnterior) {
         updateRetiradaOrdemServico(patrimonioAnterior, osRetNumber);
       }
     }
 
-    onSaveOS(novaOS);
+    // Grava no aparelho ANTES de seguir: só avança se a OS ficou salva
+    setSalvando(true);
+    setErroSalvar('');
+    try {
+      await onSaveOS(novaOS);
+    } catch (err) {
+      console.error('Falha ao salvar OS:', err);
+      setErroSalvar('Não foi possível salvar a OS neste aparelho. Verifique o espaço livre do celular e tente novamente. Nada foi perdido: os dados continuam no formulário.');
+      setSalvando(false);
+      return;
+    }
+    setSalvando(false);
     setSavedOS(novaOS);
     setEmailEnviadoConfirmado(false);
 
@@ -805,10 +929,29 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     setCurrentStep(5);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
-    // Dispara automaticamente o fluxo de anexo/e-mail para contratos2@maquim.com.br
-    setTimeout(() => {
-      handleSendEmailWithAttachment(novaOS);
-    }, 450);
+    // O envio é feito pelo botão "Disparar e-mail" (o celular só permite anexar PDFs
+    // no compartilhamento quando parte de um toque do usuário).
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setEmailStatus({
+        sending: false,
+        type: 'info',
+        message: 'Sem internet agora. A OS e os PDFs estão salvos neste aparelho. Toque em "Sem internet: enviar depois" para liberar a próxima instalação.',
+      });
+    }
+  };
+
+  // Sem internet: libera a próxima instalação e deixa o e-mail pendente (aparece no aviso e no Histórico)
+  const handleEnviarDepois = () => {
+    if (!savedOS) return;
+    const updated: OrdemServico = { ...savedOS, envioPendenteOffline: true };
+    setSavedOS(updated);
+    onSaveOS(updated);
+    setEmailEnviadoConfirmado(true);
+    setEmailStatus({
+      sending: false,
+      type: 'info',
+      message: 'OS guardada como "e-mail pendente". Quando tiver internet, abra o Histórico e toque em "Enviar agora".',
+    });
   };
 
   // Helper para resetar e iniciar novo atendimento (todos os campos desmarcados / nulos)
@@ -823,6 +966,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     setNumeroSerie('');
     setModelo('');
     setGatiInstalacao('');
+    setSelectedLocalId('');
     setOrdemServico('');
     setClienteInstalacao('');
     setSecretaria('');
@@ -878,15 +1022,23 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   const handleSendEmailWithAttachment = async (targetOS?: OrdemServico) => {
     const osToShare = targetOS || savedOS;
     if (!osToShare) return;
-    setEmailStatus({ sending: true, message: 'Preparando arquivos PDF e disparando e-mail para contratos2@maquim.com.br...' });
+    setEmailStatus({ sending: true, message: `Preparando os PDFs para enviar a ${MAQUIM_EMAIL_DESTINATARIO}...` });
     try {
       const result = await shareOSWithPDFAttachment(osToShare);
+      if (!result.success) {
+        setEmailStatus({
+          sending: false,
+          type: 'info',
+          message: result.message || 'Envio cancelado. Toque novamente em "Disparar e-mail" quando quiser.',
+        });
+        return;
+      }
       markEmailAsSent(osToShare);
       if (result.method === 'native-share') {
         setEmailStatus({
           sending: false,
           type: 'success',
-          message: '✓ PDF anexado diretamente ao seu aplicativo de e-mail (Gmail/Outlook)! Basta clicar em Enviar.',
+          message: `PDF anexado no seu app de e-mail. O destinatário ${MAQUIM_EMAIL_DESTINATARIO} foi COPIADO: no campo "Para", toque e segure e escolha "Colar". Depois toque em Enviar.`,
         });
       } else {
         setEmailStatus({
@@ -898,7 +1050,6 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
         });
       }
     } catch (err: any) {
-      markEmailAsSent(osToShare);
       setEmailStatus({
         sending: false,
         type: 'error',
@@ -910,7 +1061,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   return (
     <div className="max-w-3xl mx-auto pb-16">
       {/* Barra de Progresso das 5 Etapas Oficiais */}
-      <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 mb-6 sticky top-2 z-20 backdrop-blur-md bg-white/95">
+      <div className="barra-etapas-fixa bg-white rounded-2xl p-4 shadow-xs border border-slate-200 mb-6 sticky top-2 z-20 backdrop-blur-md bg-white/95">
         <div className="flex items-center justify-between text-xs font-semibold mb-2">
           <span
             className={`flex items-center gap-1.5 ${
@@ -1043,11 +1194,14 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                 <div className="relative">
                   <input
                     type="text"
+                    inputMode="numeric"
+                    enterKeyHint="next"
+                    autoComplete="off"
                     value={patrimonio}
                     onChange={(e) => handleSelectPatrimonio(e.target.value)}
                     placeholder="Ex: 8478 ou 8250"
                     list="patrimonios-list"
-                    className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl font-mono text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
+                    className={`campo-obrigatorio w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl font-mono text-base focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
                       errors.patrimonio ? 'border-red-500 bg-red-50/30' : 'border-slate-200'
                     }`}
                   />
@@ -1104,9 +1258,13 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                     Equipamento validado: <strong>{modelo}</strong> (Série: <span className="font-mono">{numeroSerie}</span>).
                   </span>
                 </div>
-                {ordemServico && (
+                {osInstalacaoVinculada ? (
                   <span className="self-start sm:self-center font-mono font-bold bg-[#0D52BD] text-white px-2.5 py-0.5 rounded-full shadow-xs">
-                    OS: #{ordemServico}
+                    OS: #{osInstalacaoVinculada}
+                  </span>
+                ) : (
+                  <span className="self-start sm:self-center font-bold bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full">
+                    Sem OS vinculada na planilha
                   </span>
                 )}
               </div>
@@ -1134,16 +1292,19 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  enterKeyHint="done"
+                  autoComplete="off"
                   value={gatiInstalacao}
                   onChange={(e) => handleSelectGATi(e.target.value)}
                   placeholder="Ex: 47513, 29119, 32736"
                   list="gati-list"
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl font-mono text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
+                  className={`campo-obrigatorio w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl font-mono text-base focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
                     errors.gatiInstalacao ? 'border-red-500 bg-red-50/30' : 'border-slate-200'
                   }`}
                 />
                 <datalist id="gati-list">
-                  {locaisDistribuicao.map((l) => (
+                  {Array.from(new Map(locaisDistribuicao.map((l) => [l.gatiInstalacao, l])).values()).map((l) => (
                     <option key={l.id} value={l.gatiInstalacao}>
                       {l.gatiInstalacao} - {l.clienteInstalacao} ({l.secretaria})
                     </option>
@@ -1155,29 +1316,27 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Nº da Ordem de Serviço (OS)
-                  </label>
-                  {ordemServico ? (
-                    <span className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                      Vinculada ao Equipamento ✓
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-medium">Opcional / Em branco</span>
-                  )}
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Nº da OS de Instalação</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+                    <Lock className="w-3 h-3 text-slate-400" /> Automático
+                  </span>
+                </label>
+                <div
+                  className={`w-full px-3.5 py-2.5 border rounded-xl text-sm font-mono font-bold ${
+                    osInstalacaoVinculada
+                      ? 'bg-blue-50 border-blue-200 text-blue-900'
+                      : 'bg-slate-100 border-slate-200 text-slate-400'
+                  }`}
+                >
+                  {osInstalacaoVinculada ? `#${osInstalacaoVinculada}` : patrimonio ? 'Sem OS vinculada' : 'Vem do patrimônio'}
                 </div>
-                <input
-                  type="text"
-                  value={ordemServico}
-                  onChange={(e) => setOrdemServico(e.target.value)}
-                  placeholder="Automático pelo patrimônio ou digite o nº da OS"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
-                />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  {ordemServico
-                    ? `OS #${ordemServico} vinculada automaticamente ao equipamento #${patrimonio || 'selecionado'}.`
-                    : 'Pode ficar em branco se ainda não foi lançada.'}
+                  {osInstalacaoVinculada
+                    ? `Vinculada ao patrimônio #${patrimonio}. Não precisa digitar.`
+                    : patrimonio
+                    ? 'Este patrimônio ainda não tem OS na planilha; o escritório lança depois.'
+                    : 'Preenchida sozinha ao escolher o patrimônio.'}
                 </p>
               </div>
 
@@ -1198,6 +1357,102 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                 />
               </div>
             </div>
+
+            {/* LOCALIZAÇÕES deste GATi: onde cada equipamento deve ser instalado */}
+            {locaisDoGati.length > 0 && (
+              <div
+                data-erro={errors.localizacao ? 'true' : undefined}
+                className={`mb-5 rounded-2xl border-2 p-3 ${
+                  errors.localizacao
+                    ? 'border-red-500 bg-red-50/40'
+                    : locaisDoGati.length > 1 && !selectedLocalId
+                    ? 'border-amber-400 bg-amber-50/60'
+                    : 'border-indigo-300 bg-indigo-50/50'
+                }`}
+              >
+                <div className="flex items-start gap-2 mb-2.5">
+                  <MapPin className="w-5 h-5 text-indigo-700 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-black text-indigo-950 uppercase tracking-wide">
+                      {locaisDoGati.length > 1
+                        ? `Localizações neste local (${locaisDoGati.length})`
+                        : 'Localização de instalação'}
+                    </p>
+                    <p className="text-[11px] text-indigo-900/80">
+                      {locaisDoGati.length > 1
+                        ? 'Toque na localização onde este equipamento está sendo instalado.'
+                        : 'Local onde o equipamento deve ser instalado.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {locaisDoGati.map((loc) => {
+                    const ativo = loc.id === selectedLocalId;
+                    const instalado = loc.status === 'instalado';
+                    const antigo = anteriorDaLocalizacao(loc.setor);
+                    const tipoDiferente =
+                      equipamentoNovoSelecionado && loc.tipoEquipamento && equipamentoNovoSelecionado.tipo !== loc.tipoEquipamento;
+                    return (
+                      <button
+                        key={loc.id}
+                        type="button"
+                        disabled={instalado}
+                        onClick={() => selectLocal(loc)}
+                        className={`w-full text-left p-3 rounded-xl border-2 flex items-start gap-3 transition-all ${
+                          ativo
+                            ? 'border-indigo-600 bg-white ring-4 ring-indigo-500/20 shadow-sm'
+                            : instalado
+                            ? 'border-emerald-200 bg-emerald-50/60 opacity-70'
+                            : 'border-slate-200 bg-white hover:border-indigo-300'
+                        }`}
+                      >
+                        <span
+                          className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                            ativo ? 'border-indigo-600 bg-indigo-600' : instalado ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'
+                          }`}
+                        >
+                          {(ativo || instalado) && <Check className="w-3 h-3 text-white" />}
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-base font-black text-slate-900 uppercase leading-tight">
+                            {loc.setor && loc.setor.trim() ? loc.setor : loc.clienteInstalacao}
+                          </span>
+                          <span className="flex flex-wrap gap-1.5 mt-1 text-[11px]">
+                            <span
+                              className={`px-1.5 py-0.5 rounded font-bold ${
+                                loc.tipoEquipamento === 'Color' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {loc.modeloPrevisto} ({loc.tipoEquipamento})
+                            </span>
+                            {instalado ? (
+                              <span className="px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
+                                Já instalado{loc.patrimonioInstalado ? ` #${loc.patrimonioInstalado}` : ''}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded font-bold bg-amber-100 text-amber-800">Pendente</span>
+                            )}
+                            {antigo && (
+                              <span className="px-1.5 py-0.5 rounded font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                                Retirar: #{antigo.patrimonio}
+                                {antigo.conectividadeIp ? ` · IP ${antigo.conectividadeIp}` : ''}
+                              </span>
+                            )}
+                          </span>
+                          {ativo && tipoDiferente && (
+                            <span className="block mt-1 text-[11px] font-bold text-rose-700">
+                              Atenção: previsto {loc.tipoEquipamento}, mas o patrimônio #{patrimonio} é {equipamentoNovoSelecionado?.tipo}.
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {errors.localizacao && <p className="text-red-600 text-xs mt-2 font-bold">{errors.localizacao}</p>}
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>
@@ -1261,35 +1516,31 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Setor do Endereço (se houver)
+                    Localização / Setor (ajuste se necessário)
                   </label>
                   <input
                     type="text"
+                    enterKeyHint="done"
                     value={setor}
                     onChange={(e) => setSetor(e.target.value)}
                     placeholder="Ex: Gabinete, Recepção, Secretaria"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-base text-slate-800"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                    <span>Nome e Sobrenome do Responsável do Local *</span>
-                    <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 font-medium">
-                      Preenchimento pelo Técnico
+                {responsavelLocalCadastrado && (
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Contato cadastrado na planilha
                     </span>
-                  </label>
-                  <input
-                    type="text"
-                    value={responsavelLocalCadastrado}
-                    onChange={(e) => {
-                      setResponsavelLocalCadastrado(e.target.value);
-                      setResponsavelNome(e.target.value);
-                    }}
-                    placeholder="Nome e sobrenome de quem acompanha a instalação"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                    <p className="px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-700">
+                      {responsavelLocalCadastrado}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Só para referência. Quem acompanhar o serviço preenche nome, CPF e assina na etapa 4.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1425,18 +1676,13 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Endereço IP do Equipamento *
                   </label>
-                  <input
-                    type="text"
+                  <IPKeypadInput
                     value={enderecoIP}
-                    onChange={(e) => setEnderecoIP(e.target.value)}
-                    placeholder="Ex: 192.168.15.50"
-                    className={`w-full max-w-sm px-3.5 py-2.5 bg-white border rounded-xl font-mono text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
-                      errors.enderecoIP ? 'border-red-500' : 'border-slate-200'
-                    }`}
+                    onChange={setEnderecoIP}
+                    error={errors.enderecoIP}
+                    suggestedIP={ipSugerido}
+                    prefixSuggestions={prefixosIP}
                   />
-                  {errors.enderecoIP && (
-                    <p className="text-red-500 text-xs mt-1">{errors.enderecoIP}</p>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -1792,20 +2038,27 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {/* Campo Nº da OS de Retirada */}
+                    {/* Nº da OS de Retirada: vem do vínculo do patrimônio retirado */}
                     <div>
-                      <label className="block text-xs font-semibold text-amber-900 uppercase tracking-wider mb-1">
-                        Nº da Ordem de Serviço de Retirada (OS Retirada)
-                      </label>
-                      <input
-                        type="text"
-                        value={ordemServicoRetirada}
-                        onChange={(e) => setOrdemServicoRetirada(e.target.value)}
-                        placeholder="Ex: 88412 (Lançar ou automático da planilha)"
-                        className="w-full px-3.5 py-2.5 bg-white border border-amber-300 rounded-xl font-mono text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
-                      />
+                      <span className="block text-xs font-semibold text-amber-900 uppercase tracking-wider mb-1 flex items-center justify-between">
+                        <span>Nº da OS de Retirada</span>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 font-medium normal-case">
+                          <Lock className="w-3 h-3" /> Automático
+                        </span>
+                      </span>
+                      <div
+                        className={`w-full px-3.5 py-2.5 border rounded-xl font-mono text-sm font-bold ${
+                          osRetiradaVinculada ? 'bg-white border-amber-300 text-amber-950' : 'bg-slate-100 border-slate-200 text-slate-400'
+                        }`}
+                      >
+                        {osRetiradaVinculada ? `#${osRetiradaVinculada}` : patrimonioAnterior ? 'Sem OS vinculada' : 'Vem do patrimônio retirado'}
+                      </div>
                       <p className="text-[10px] text-amber-800 mt-1">
-                        Número da OS de retirada incluído na planilha/banco. Se em branco, o PDF será nomeado pelo patrimônio.
+                        {osRetiradaVinculada
+                          ? 'Vinculada ao patrimônio retirado. Não precisa digitar.'
+                          : patrimonioAnterior
+                          ? 'Este patrimônio ainda não tem OS de retirada na planilha; o escritório lança depois.'
+                          : 'Preenchida sozinha ao escolher o patrimônio retirado.'}
                       </p>
                     </div>
 
@@ -1817,11 +2070,14 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                       <div className="relative">
                         <input
                           type="text"
+                          inputMode="numeric"
+                          enterKeyHint="done"
+                          autoComplete="off"
                           value={patrimonioAnterior}
                           onChange={(e) => handleSelectPatrimonioAnterior(e.target.value)}
                           placeholder="Buscar patrimônio anterior (ex: 4423, 4583, 7424...)"
                           list="patrimonios-anteriores-list"
-                          className={`w-full px-3.5 py-2.5 bg-white border rounded-xl font-mono text-xs font-bold focus:outline-hidden focus:ring-2 focus:ring-amber-500 ${
+                          className={`campo-obrigatorio w-full px-3.5 py-2.5 bg-white border rounded-xl font-mono text-base font-bold focus:outline-hidden focus:ring-2 focus:ring-amber-500 ${
                             errors.patrimonioAnterior ? 'border-red-500 bg-red-50/20' : 'border-amber-300'
                           }`}
                         />
@@ -1838,6 +2094,46 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                       )}
                     </div>
                   </div>
+
+                  {/* Equipamentos do contrato anterior neste local: toque para escolher */}
+                  {anterioresDoGati.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-amber-950 uppercase tracking-wider mb-1.5">
+                        Equipamentos a retirar neste local ({anterioresDoGati.length})
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[...anterioresDoGati]
+                          .sort((a, b) => {
+                            const alvo = anteriorDaLocalizacao(setor)?.patrimonio;
+                            return (b.patrimonio === alvo ? 1 : 0) - (a.patrimonio === alvo ? 1 : 0);
+                          })
+                          .map((r) => {
+                            const ativo = r.patrimonio === patrimonioAnterior;
+                            const sugerido = r.patrimonio === anteriorDaLocalizacao(setor)?.patrimonio;
+                            const retirado = r.status === 'retirado';
+                            return (
+                              <button
+                                key={r.patrimonio}
+                                type="button"
+                                onClick={() => handleSelectPatrimonioAnterior(r.patrimonio)}
+                                className={`px-2.5 py-1.5 rounded-lg border text-left text-xs ${
+                                  ativo
+                                    ? 'bg-amber-600 border-amber-600 text-white'
+                                    : sugerido
+                                    ? 'bg-white border-amber-500 ring-2 ring-amber-400/40 text-amber-950'
+                                    : 'bg-white border-amber-200 text-slate-700'
+                                } ${retirado && !ativo ? 'opacity-50' : ''}`}
+                              >
+                                <span className="font-mono font-bold">#{r.patrimonio}</span>{' '}
+                                <span className="font-semibold uppercase">{r.localizacao || '—'}</span>
+                                {sugerido && !ativo && <span className="ml-1 text-[10px] font-bold text-amber-700">(esta localização)</span>}
+                                {retirado && <span className="ml-1 text-[10px]">(já retirado)</span>}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Dados retornados automaticamente */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
@@ -1925,6 +2221,8 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                           </label>
                           <input
                             type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
                             value={contadorMono}
                             onChange={(e) => setContadorMono(e.target.value)}
                             placeholder="Ex: 48.350"
@@ -1944,6 +2242,8 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                           </label>
                           <input
                             type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
                             value={contadorColor}
                             onChange={(e) => setContadorColor(e.target.value)}
                             placeholder="Ex: 6.470"
@@ -1978,6 +2278,8 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                       </label>
                       <input
                         type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
                         value={contadorMono || contadorPaginasFinal}
                         onChange={(e) => {
                           setContadorMono(e.target.value);
@@ -2350,6 +2652,11 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
               <p>
                 <strong>Local:</strong> {clienteInstalacao} (GATi: {gatiInstalacao}) - {bairro}
               </p>
+              {setor && (
+                <p>
+                  <strong>Localização:</strong> <span className="font-bold uppercase text-indigo-900">{setor}</span>
+                </p>
+              )}
               <p>
                 <strong>Equipamento Instalado:</strong> {modelo} | Patrimônio: #{patrimonio} | Série:{' '}
                 {numeroSerie}
@@ -2364,48 +2671,6 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                   Série: {numeroSerieAnterior}
                 </p>
               )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Nome e Sobrenome do Responsável do Local *
-                </label>
-                <input
-                  type="text"
-                  value={responsavelNome}
-                  onChange={(e) => {
-                    setResponsavelNome(e.target.value);
-                    setResponsavelLocalCadastrado(e.target.value);
-                  }}
-                  placeholder="Nome completo de quem acompanhou"
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
-                    errors.responsavelNome ? 'border-red-500 bg-red-50/30' : 'border-slate-200'
-                  }`}
-                />
-                {errors.responsavelNome && (
-                  <p className="text-red-500 text-xs mt-1">{errors.responsavelNome}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  CPF do Responsável do Local *
-                </label>
-                <input
-                  type="text"
-                  value={responsavelCPF}
-                  onChange={(e) => setResponsavelCPF(formatCPF(e.target.value))}
-                  placeholder="000.000.000-00"
-                  maxLength={14}
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl font-mono text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
-                    errors.responsavelCPF ? 'border-red-500 bg-red-50/30' : 'border-slate-200'
-                  }`}
-                />
-                {errors.responsavelCPF && (
-                  <p className="text-red-500 text-xs mt-1">{errors.responsavelCPF}</p>
-                )}
-              </div>
             </div>
 
             {/* Usuários Treinados no Local (Instruções de Uso e Pré-Manutenção) */}
@@ -2433,6 +2698,9 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
               <div className="flex gap-2">
                 <input
                   type="text"
+                  autoCapitalize="words"
+                  enterKeyHint="done"
+                  data-enter-action="custom"
                   value={novoUsuarioInput}
                   onChange={(e) => setNovoUsuarioInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -2442,7 +2710,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                     }
                   }}
                   placeholder="Nome e Sobrenome do usuário treinado (Ex: Maria Silva)"
-                  className="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 min-w-0 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="button"
@@ -2450,7 +2718,8 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                   className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1 shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Adicionar
+                  <span className="hidden sm:inline">Adicionar</span>
+                  <span className="sm:hidden">Add</span>
                 </button>
               </div>
 
@@ -2482,10 +2751,60 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
               )}
             </div>
 
+            {/* Responsável que acompanhou e validou o serviço (sempre em branco para preenchimento no local) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+              <div>
+                <label htmlFor="responsavelNome" className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5 leading-snug">
+                  NOME E SOBRENOME DO RESPONSÁVEL QUE ACOMPANHOU E VALIDOU O SERVIÇO *
+                </label>
+                <input
+                  id="responsavelNome"
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="words"
+                  enterKeyHint="next"
+                  value={responsavelNome}
+                  onChange={(e) => setResponsavelNome(e.target.value)}
+                  placeholder="Nome e sobrenome"
+                  className={`campo-obrigatorio w-full px-3.5 py-3 bg-slate-50 border rounded-xl text-base font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
+                    errors.responsavelNome ? 'border-red-500 bg-red-50/30' : 'border-slate-200'
+                  }`}
+                />
+                {errors.responsavelNome && (
+                  <p className="text-red-500 text-xs mt-1">{errors.responsavelNome}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="responsavelCPF" className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5 leading-snug">
+                  CPF DO RESPONSÁVEL QUE ACOMPANHOU E VALIDOU O SERVIÇO *
+                </label>
+                <input
+                  id="responsavelCPF"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  enterKeyHint="done"
+                  value={responsavelCPF}
+                  onChange={(e) => setResponsavelCPF(formatCPF(e.target.value))}
+                  placeholder="Só os números: 000.000.000-00"
+                  maxLength={14}
+                  className={`campo-obrigatorio w-full px-3.5 py-3 bg-slate-50 border rounded-xl font-mono text-lg tracking-wider focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
+                    errors.responsavelCPF ? 'border-red-500 bg-red-50/30' : 'border-slate-200'
+                  }`}
+                />
+                {errors.responsavelCPF ? (
+                  <p className="text-red-500 text-xs mt-1">{errors.responsavelCPF}</p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 mt-1">Digite só os números; os pontos e o traço entram sozinhos.</p>
+                )}
+              </div>
+            </div>
+
             {/* Assinatura Digital Touchscreen */}
             <div className="mb-6">
               <SignaturePad
-                label="Assinatura Digital do Responsável do Local"
+                label="Assinatura do responsável que acompanhou e validou o serviço"
                 initialSignature={assinaturaClienteBase64}
                 onSave={(sig) => setAssinaturaClienteBase64(sig)}
                 onClear={() => setAssinaturaClienteBase64(undefined)}
@@ -2572,12 +2891,16 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
             <button
               type="button"
               onClick={handleSubmit}
-              className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#0D52BD] hover:bg-[#0B1B3D] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm"
+              disabled={salvando}
+              className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#0D52BD] hover:bg-[#0B1B3D] disabled:opacity-60 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm"
             >
               <Mail className="w-5 h-5 text-blue-200" />
-              Avançar para Etapa 5: Envio Obrigatório por E-mail (com Anexos) →
+              {salvando ? 'Salvando no aparelho...' : 'Salvar OS e gerar PDFs →'}
             </button>
           </div>
+          {erroSalvar && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-300 text-red-800 text-xs font-semibold">{erroSalvar}</div>
+          )}
         </div>
       )}
 
@@ -2585,7 +2908,23 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       {currentStep === 5 && savedOS && (
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 text-center animate-in zoom-in-95 duration-200 space-y-6">
           {/* Banner de Status Obrigatório (Pendente vs Concluído) */}
-          {emailEnviadoConfirmado ? (
+          {savedOS.envioPendenteOffline && !savedOS.enviadoEmail ? (
+            <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-2xl text-left flex items-start gap-3 shadow-xs">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 bg-amber-200 px-2.5 py-0.5 rounded-full">
+                  OS salva · e-mail pendente
+                </span>
+                <h3 className="text-base font-bold text-amber-950 mt-1">Próxima instalação liberada</h3>
+                <p className="text-xs text-amber-900 mt-0.5 leading-relaxed">
+                  A OS, a assinatura e os PDFs estão guardados neste aparelho. Quando tiver internet, envie para{' '}
+                  {MAQUIM_EMAIL_DESTINATARIO} pelo Histórico (botão "Enviar agora").
+                </p>
+              </div>
+            </div>
+          ) : emailEnviadoConfirmado ? (
             <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl text-left flex items-start gap-3 shadow-xs">
               <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                 <CheckCircle2 className="w-6 h-6" />
@@ -2682,7 +3021,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                     : 'bg-amber-100 text-amber-900 border border-amber-300'
                 }`}
               >
-                {emailEnviadoConfirmado ? 'ENVIADO' : 'OBRIGATÓRIO'}
+                {savedOS.envioPendenteOffline && !savedOS.enviadoEmail ? 'PENDENTE' : emailEnviadoConfirmado ? 'ENVIADO' : 'OBRIGATÓRIO'}
               </span>
             </div>
           </div>
@@ -3035,6 +3374,33 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Sem internet: não bloquear o técnico */}
+          {!emailEnviadoConfirmado && (
+            <div className={`rounded-2xl p-4 border max-w-md mx-auto text-left text-xs space-y-2 ${online ? 'bg-slate-50 border-slate-200' : 'bg-slate-800 border-slate-700 text-white'}`}>
+              <div className="flex items-center gap-2 font-bold">
+                <WifiOff className={`w-4 h-4 ${online ? 'text-slate-500' : 'text-amber-300'}`} />
+                {online ? 'Está sem internet no local?' : 'Você está sem internet agora'}
+              </div>
+              <p className={online ? 'text-slate-600' : 'text-slate-200'}>
+                A OS, as fotos, a assinatura e os PDFs já estão salvos neste aparelho. Libere a próxima instalação e
+                envie o e-mail depois pelo Histórico, quando tiver conexão.
+              </p>
+              <button
+                type="button"
+                onClick={handleEnviarDepois}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl"
+              >
+                <Clock className="w-4 h-4" />
+                Sem internet: enviar depois
+              </button>
+            </div>
+          )}
+          {savedOS.envioPendenteOffline && !savedOS.enviadoEmail && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold max-w-md mx-auto text-left">
+              E-mail pendente: esta OS aparece no aviso amarelo do topo e no Histórico até ser enviada.
+            </div>
+          )}
 
           {/* Feedback de envio de e-mail / anexo */}
           {emailStatus.message && (
