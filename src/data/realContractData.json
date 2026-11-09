@@ -6140,7 +6140,8 @@
       "endereco": "PRAÇA CONDE MOREIRA LIMA, S/N",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110543"
     },
     {
       "secretaria": "Cultura",
@@ -6156,7 +6157,8 @@
       "endereco": "RUA VISCONDESSA DE CASTRO LIMA, 10",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110545"
     },
     {
       "secretaria": "Educação",
@@ -6189,7 +6191,8 @@
       "endereco": "RUA ALAMEDA JOAO AUGUSTO DE LIMA, S/N",
       "bairro": "PARQUE DAS RODOVIAS",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110544"
     },
     {
       "secretaria": "Educação",
@@ -6205,7 +6208,8 @@
       "endereco": "AVENIDA SETE DE SETEMBRO, S/N",
       "bairro": "BAIRRO DA CRUZ",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110546"
     },
     {
       "secretaria": "Educação",
@@ -6221,7 +6225,8 @@
       "endereco": "RUA PROFESSORA LUIZA CHAGAS, S/N",
       "bairro": "CECAP",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110547"
     },
     {
       "secretaria": "Educação",
@@ -6254,7 +6259,8 @@
       "endereco": "RUA ANTONIO ALFREDO DOS SANTOS, 130",
       "bairro": "JARDIM MARGARIDA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110548"
     },
     {
       "secretaria": "Educação",
@@ -6270,7 +6276,8 @@
       "endereco": "RUA PARAIBA, 620",
       "bairro": "CIDADE INSDUSTRIAL",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110549"
     },
     {
       "secretaria": "Educação",
@@ -6286,7 +6293,8 @@
       "endereco": "AVENIDA TARGINO VILELA NUNES, 1462",
       "bairro": "VILA NUNES",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110550"
     },
     {
       "secretaria": "Educação",
@@ -6319,7 +6327,8 @@
       "endereco": "RUA RICARDO MARCONDES JUNIOR, 100",
       "bairro": "JARDIM PRIMAVERA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110551"
     },
     {
       "secretaria": "Educação",
@@ -6335,7 +6344,8 @@
       "endereco": "RUA CAPITÃO LEOVIGILDO ARECO, 1490",
       "bairro": "SÃO ROQUE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110552"
     },
     {
       "secretaria": "Educação",
@@ -6351,7 +6361,8 @@
       "endereco": "RUA ODILA RODRIGUES, 138",
       "bairro": "VILA SAO ROQUE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110553"
     },
     {
       "secretaria": "Educação",
@@ -6367,7 +6378,8 @@
       "endereco": "AVENIDA JUCELINO KUBISTCHEK DE OLIVEIRA, 485",
       "bairro": "VILA BRITO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110554"
     },
     {
       "secretaria": "Educação",
@@ -6383,7 +6395,8 @@
       "endereco": "RUA PARANÁ, 170",
       "bairro": "CIDADE INSDUSTRIAL",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110555"
     },
     {
       "secretaria": "Educação",
@@ -6399,7 +6412,8 @@
       "endereco": "ESTRADA DO CAMPINHO, 2500",
       "bairro": "CAMPINHO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110556"
     },
     {
       "secretaria": "Educação",
@@ -6415,7 +6429,8 @@
       "endereco": "ESTRADA LIBERO LAURINDO LUIZ SANTOS, S/N",
       "bairro": "CABELINHA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110557"
     },
     {
       "secretaria": "Educação",
@@ -6431,7 +6446,8 @@
       "endereco": "RUA SÃO JUDAS TADEU, 130",
       "bairro": "CIDADE INSDUSTRIAL",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110558"
     },
     {
       "secretaria": "Educação",
@@ -6447,7 +6463,8 @@
       "endereco": "AVENIDA TIRADENTES, 1007",
       "bairro": "PONTE NOVA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110559"
     },
     {
       "secretaria": "Educação",
@@ -6463,7 +6480,8 @@
       "endereco": "PRAÇA DALLE COUTINHO, 22",
       "bairro": "SANTO ANTÔNIO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110560"
     },
     {
       "secretaria": "Educação",
@@ -6479,7 +6497,8 @@
       "endereco": "AVENIDA TARGINO VILELA NUNES, 1462",
       "bairro": "VILA NUNES",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110561"
     },
     {
       "secretaria": "Educação",
@@ -6495,7 +6514,8 @@
       "endereco": "RUA LEON ZEPHIR DENIS, 333",
       "bairro": "VILA GENY",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110562"
     },
     {
       "secretaria": "Educação",
@@ -6511,7 +6531,8 @@
       "endereco": "RUA ALAMEDA JOAO AUGUSTO DE LIMA, S/N",
       "bairro": "PARQUE DAS RODOVIAS",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110563"
     },
     {
       "secretaria": "Educação",
@@ -6527,7 +6548,8 @@
       "endereco": "AVENIDA PROFESSORA APARECIDA GUEDES DE OLIVEIRA CRUZ, S/N",
       "bairro": "VILA DOS COMERCIÁRIOS",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110564"
     },
     {
       "secretaria": "Educação",
@@ -6543,7 +6565,8 @@
       "endereco": "AVENIDA ANTONIO HADDAD, S/N",
       "bairro": "SANTO ANTÔNIO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110565"
     },
     {
       "secretaria": "Educação",
@@ -6559,7 +6582,8 @@
       "endereco": "AVENIDA TIRADENTES, 78",
       "bairro": "PONTE NOVA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110566"
     },
     {
       "secretaria": "Educação",
@@ -6575,7 +6599,8 @@
       "endereco": "RUA JOÃO DE AQUINO, S/N",
       "bairro": "BAIRRO DO IPÊ",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110567"
     },
     {
       "secretaria": "Educação",
@@ -6591,7 +6616,8 @@
       "endereco": "RUA CARDEAL DOM CARLOS CARMELLO V. MOTTA, 65",
       "bairro": "PARQUE DAS RODOVIAS",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110631"
     },
     {
       "secretaria": "Educação",
@@ -6607,7 +6633,8 @@
       "endereco": "RUA PAULO MARCONDES, S/N",
       "bairro": "CECAP",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110568"
     },
     {
       "secretaria": "Educação",
@@ -6623,7 +6650,8 @@
       "endereco": "RUA PAULO MARCONDES, S/N",
       "bairro": "CECAP",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110569"
     },
     {
       "secretaria": "Educação",
@@ -6639,7 +6667,8 @@
       "endereco": "RUA WENCESLAU BRÁS, 457",
       "bairro": "CIDADE INSDUSTRIAL",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110570"
     },
     {
       "secretaria": "Educação",
@@ -6655,7 +6684,8 @@
       "endereco": "RUA MARIA VICTÓRIA BRANDÃO, S/N",
       "bairro": "JARDIM NOVO HORIZONTE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110571"
     },
     {
       "secretaria": "Educação",
@@ -6671,7 +6701,8 @@
       "endereco": "RUA EXPEDICIONÁRIO GENÉSIO VALENTIM CORRÊA, 340",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110632"
     },
     {
       "secretaria": "Educação",
@@ -6687,7 +6718,8 @@
       "endereco": "RUA PROFESSOR FRANCISCO PRUDENTE DE AQUINO, 150",
       "bairro": "CABELINHA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110572"
     },
     {
       "secretaria": "Educação",
@@ -6703,7 +6735,8 @@
       "endereco": "RUA ANTONIO ESCADA, 250",
       "bairro": "SANTA EDWIGES",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110573"
     },
     {
       "secretaria": "Educação",
@@ -6719,7 +6752,8 @@
       "endereco": "AVENIDA SÃO JOSÉ, 150",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110574"
     },
     {
       "secretaria": "Educação",
@@ -6735,7 +6769,8 @@
       "endereco": "ESTRADA SÃO MIGUEL, S/N",
       "bairro": "PINHAL NOVO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110575"
     },
     {
       "secretaria": "Educação",
@@ -6751,7 +6786,8 @@
       "endereco": "PRAÇA SANTA RITA, S/N",
       "bairro": "SANTA RITA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110576"
     },
     {
       "secretaria": "Educação",
@@ -6767,7 +6803,8 @@
       "endereco": "ESTRADA DO CAMPINHO, 2500",
       "bairro": "CAMPINHO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110577"
     },
     {
       "secretaria": "Educação",
@@ -6783,7 +6820,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 332",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110578"
     },
     {
       "secretaria": "Educação",
@@ -6799,7 +6837,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 332",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110579"
     },
     {
       "secretaria": "Educação",
@@ -6815,7 +6854,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 332",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110633"
     },
     {
       "secretaria": "Educação",
@@ -6865,7 +6905,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 332",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110580"
     },
     {
       "secretaria": "Educação",
@@ -6881,7 +6922,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 332",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110581"
     },
     {
       "secretaria": "Educação",
@@ -6914,7 +6956,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 332",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110582"
     },
     {
       "secretaria": "Educação",
@@ -6930,7 +6973,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 332",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110634"
     },
     {
       "secretaria": "Educação",
@@ -7014,7 +7058,8 @@
       "endereco": "RUA ALCIDES DA COSTA VIDIGAL, 1002",
       "bairro": "NOVA LORENA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110583"
     },
     {
       "secretaria": "Esporte",
@@ -7251,7 +7296,8 @@
       "endereco": "RUA ALICE PEREIRA LIMA, 45",
       "bairro": "JARDIM MARGARIDA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110584"
     },
     {
       "secretaria": "Gabinete",
@@ -7301,7 +7347,8 @@
       "endereco": "RUA PRESIDENTE ROOSEVELT, 65",
       "bairro": "BAIRRO DA CRUZ",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110585"
     },
     {
       "secretaria": "Juridico",
@@ -7334,7 +7381,8 @@
       "endereco": "RUA PRESIDENTE ROOSEVELT, 65",
       "bairro": "BAIRRO DA CRUZ",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110586"
     },
     {
       "secretaria": "Juridico",
@@ -7418,7 +7466,8 @@
       "endereco": "AVENIDA CAPITAO MESSIAS RIBEIRO, 211",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110589"
     },
     {
       "secretaria": "Meio Ambiente",
@@ -7434,7 +7483,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 333",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110590"
     },
     {
       "secretaria": "Meio Ambiente",
@@ -7450,7 +7500,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 333",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110590"
     },
     {
       "secretaria": "Meio Ambiente",
@@ -7466,7 +7517,8 @@
       "endereco": "RUA COMENDADOR CUSTÓDIO VIEIRA, 333",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110591"
     },
     {
       "secretaria": "Obras",
@@ -7652,7 +7704,8 @@
       "endereco": "AVENIDA SÃO JOSÉ, 150",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110593"
     },
     {
       "secretaria": "Sads",
@@ -7668,7 +7721,8 @@
       "endereco": "RUA COMENDADOR CUSTODIO VIEIRA, 332",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110594"
     },
     {
       "secretaria": "Sads",
@@ -7752,7 +7806,8 @@
       "endereco": "RUA PADRE JOAO RENAUDIN, 240",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110595"
     },
     {
       "secretaria": "Sads",
@@ -7768,7 +7823,8 @@
       "endereco": "RUA PADRE JOAO RENAUDIN, 240",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110596"
     },
     {
       "secretaria": "Sads",
@@ -7818,7 +7874,8 @@
       "endereco": "RUA ALEIXO PEREIRA, 25",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110597"
     },
     {
       "secretaria": "Saúde",
@@ -7834,7 +7891,8 @@
       "endereco": "RUA BERNARDO JOSE DE LORENA, 110",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110598"
     },
     {
       "secretaria": "Saúde",
@@ -7850,7 +7908,8 @@
       "endereco": "RUA BERNARDO JOSE DE LORENA, 110",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110599"
     },
     {
       "secretaria": "Saúde",
@@ -8036,7 +8095,8 @@
       "endereco": "RUA MARCOLINO APRÍGIO DE ARAÚJO, S/N",
       "bairro": "SANTA RITA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110600"
     },
     {
       "secretaria": "Saúde",
@@ -8052,7 +8112,8 @@
       "endereco": "RUA MARCOLINO APRÍGIO DE ARAÚJO, S/N",
       "bairro": "SANTA RITA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110601"
     },
     {
       "secretaria": "Saúde",
@@ -8068,7 +8129,8 @@
       "endereco": "AVENIDA DOUTOR EUGÊNIO BORGES, 147",
       "bairro": "VILA CIDA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110602"
     },
     {
       "secretaria": "Saúde",
@@ -8084,7 +8146,8 @@
       "endereco": "RUA ANTONINO ROSA JUNIOR, 236",
       "bairro": "CABELINHA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110603"
     },
     {
       "secretaria": "Saúde",
@@ -8270,7 +8333,8 @@
       "endereco": "TRAVESSA MARIA VITORIA BRANDAO, 70",
       "bairro": "JARDIM NOVO HORIZONTE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110604"
     },
     {
       "secretaria": "Saúde",
@@ -8422,7 +8486,8 @@
       "endereco": "AVENIDA SÃO PEDRO, S/N",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110606"
     },
     {
       "secretaria": "Saúde",
@@ -8523,7 +8588,8 @@
       "endereco": "AVENIDA TIRADENTES, S/N",
       "bairro": "PONTE NOVA",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110645"
     },
     {
       "secretaria": "Saúde",
@@ -8607,7 +8673,8 @@
       "endereco": "RUA HADDAD, S/N",
       "bairro": "SANTO ANTONIO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110608"
     },
     {
       "secretaria": "Saúde",
@@ -8623,7 +8690,8 @@
       "endereco": "RUA HADDAD, S/N",
       "bairro": "SANTO ANTONIO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110609"
     },
     {
       "secretaria": "Saúde",
@@ -8639,7 +8707,8 @@
       "endereco": "RUA HADDAD, S/N",
       "bairro": "SANTO ANTONIO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110610"
     },
     {
       "secretaria": "Saúde",
@@ -8689,7 +8758,8 @@
       "endereco": "RUA VITAL ALVES DE FREITAS, 130",
       "bairro": "SÃO ROQUE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110611"
     },
     {
       "secretaria": "Saúde",
@@ -8960,7 +9030,8 @@
       "endereco": "RUA TUPI, 350",
       "bairro": "VILA HEPACARE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110612"
     },
     {
       "secretaria": "Saúde",
@@ -8976,7 +9047,8 @@
       "endereco": "RUA PADRE JOAO RENAUDIN, 260",
       "bairro": "VILA HEPACARE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110613"
     },
     {
       "secretaria": "Saúde",
@@ -8992,7 +9064,8 @@
       "endereco": "RUA BENEDITO MARCONDES DE MOURA SOBRINHO, 38",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110614"
     },
     {
       "secretaria": "Saúde",
@@ -9008,7 +9081,8 @@
       "endereco": "RUA BENEDITO MARCONDES DE MOURA SOBRINHO, 38",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110615"
     },
     {
       "secretaria": "Saúde",
@@ -9024,7 +9098,8 @@
       "endereco": "RUA BENEDITO MARCONDES DE MOURA SOBRINHO, 38",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110616"
     },
     {
       "secretaria": "Saúde",
@@ -9040,7 +9115,8 @@
       "endereco": "RUA BENEDITO MARCONDES DE MOURA SOBRINHO, 38",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110617"
     },
     {
       "secretaria": "Saúde",
@@ -9073,7 +9149,8 @@
       "endereco": "RUA BENEDITO MARCONDES DE MOURA SOBRINHO, 38",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110618"
     },
     {
       "secretaria": "Saúde",
@@ -9123,7 +9200,8 @@
       "endereco": "RUA BENEDITO MARCONDES DE MOURA SOBRINHO, 38",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110619"
     },
     {
       "secretaria": "Saúde",
@@ -9139,7 +9217,8 @@
       "endereco": "RUA BENEDITO MARCONDES DE MOURA SOBRINHO, 38",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110620"
     },
     {
       "secretaria": "Saúde",
@@ -9308,7 +9387,8 @@
       "endereco": "RUA JOSE ANTONIO ALMEIDA GONZAGA, S/N",
       "bairro": "BAIRRO DA CRUZ",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026100508"
     },
     {
       "secretaria": "Saúde",
@@ -9409,7 +9489,8 @@
       "endereco": "RUA PAULO MARCONDES DE ALMEIDA, 41",
       "bairro": "CECAP",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110621"
     },
     {
       "secretaria": "Saúde",
@@ -9442,7 +9523,8 @@
       "endereco": "RUA PAULO MARCONDES DE ALMEIDA, 41",
       "bairro": "CECAP",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110622"
     },
     {
       "secretaria": "Saúde",
@@ -9509,7 +9591,8 @@
       "endereco": "RUA PAULO MARCONDES DE ALMEIDA, 41",
       "bairro": "CECAP",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110623"
     },
     {
       "secretaria": "Saúde",
@@ -9984,7 +10067,8 @@
       "endereco": "AVENIDA SÃO JOSÉ, 150",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110624"
     },
     {
       "secretaria": "Sdet",
@@ -10068,7 +10152,8 @@
       "endereco": "AVENIDA CORONEL JOSE VICENTE, 1040",
       "bairro": "VILA HEPACARE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110625"
     },
     {
       "secretaria": "Seguranca",
@@ -10101,7 +10186,8 @@
       "endereco": "AVENIDA CORONEL JOSÉ VICENTE, 798",
       "bairro": "VILA HEPACARE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110626"
     },
     {
       "secretaria": "Serv. Municipais",
@@ -10117,7 +10203,8 @@
       "endereco": "AVENIDA CORONEL JOSÉ VICENTE, 798",
       "bairro": "VILA HEPACARE",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110627"
     },
     {
       "secretaria": "Transito",
@@ -10167,7 +10254,8 @@
       "endereco": "RUA IRMA ZORAIDE VIEIRA DA SILVA, 102",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110628"
     },
     {
       "secretaria": "Transito",
@@ -10183,7 +10271,8 @@
       "endereco": "RUA IRMA ZORAIDE VIEIRA DA SILVA, 102",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110628"
     },
     {
       "secretaria": "Transito",
@@ -10199,7 +10288,8 @@
       "endereco": "RUA IRMA ZORAIDE VIEIRA DA SILVA, 102",
       "bairro": "CENTRO",
       "responsavelLocal": "",
-      "status": "a_retirar"
+      "status": "a_retirar",
+      "ordemServicoRetirada": "2026110629"
     }
   ]
 }
