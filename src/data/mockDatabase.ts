@@ -59,11 +59,45 @@ export function buildInitialEquipamentosAnteriores(): EquipamentoAnterior[] {
   }));
 }
 
+/**
+ * Aparelhos que já abriram o app guardam uma cópia das planilhas. Quando o
+ * banco oficial (realContractData.json) recebe novos Nº de OS, esta função
+ * preenche na cópia do aparelho as OSs que ainda estão em branco, casando por
+ * patrimônio + nº de série. Nunca apaga nem sobrescreve uma OS já existente.
+ */
+function sincronizarOS<T extends { patrimonio: string; numeroSerie: string }>(
+  salvos: T[],
+  oficiais: T[],
+  campo: keyof T
+): { lista: T[]; alterou: boolean } {
+  const chave = (x: T) => `${String(x.patrimonio).trim()}|${String(x.numeroSerie).trim().toUpperCase()}`;
+  const mapa = new Map<string, unknown>();
+  oficiais.forEach((o) => {
+    const v = o[campo];
+    if (v) mapa.set(chave(o), v);
+  });
+  let alterou = false;
+  salvos.forEach((item) => {
+    if (!item[campo]) {
+      const v = mapa.get(chave(item));
+      if (v) {
+        (item as any)[campo] = v;
+        alterou = true;
+      }
+    }
+  });
+  return { lista: salvos, alterou };
+}
+
 // Funções de gerenciamento com LocalStorage
 export function getNovosEquipamentos(): NovoEquipamento[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.NOVOS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const { lista, alterou } = sincronizarOS(JSON.parse(raw) as NovoEquipamento[], buildInitialNovosEquipamentos(), 'ordemServico');
+      if (alterou) saveNovosEquipamentos(lista);
+      return lista;
+    }
   } catch (e) {
     console.error('Erro ao ler novos equipamentos:', e);
   }
@@ -103,7 +137,15 @@ export function saveLocaisDistribuicao(items: LocalDistribuicao[]): void {
 export function getEquipamentosAnteriores(): EquipamentoAnterior[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.RETIRADAS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const { lista, alterou } = sincronizarOS(
+        JSON.parse(raw) as EquipamentoAnterior[],
+        buildInitialEquipamentosAnteriores(),
+        'ordemServicoRetirada'
+      );
+      if (alterou) saveEquipamentosAnteriores(lista);
+      return lista;
+    }
   } catch (e) {
     console.error('Erro ao ler retiradas:', e);
   }
