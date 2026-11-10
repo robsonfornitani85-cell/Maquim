@@ -24,7 +24,7 @@ export function exportDistribuicaoToExcel(locais: LocalDistribuicao[]): void {
     'Responsável do Local': l.responsavelLocal,
     'Data da Instalação': l.dataInstalacao || '',
     'Status': l.status === 'instalado' ? 'CONCLUÍDO' : 'PENDENTE',
-    'Bloqueio': l.protegido ? 'PROTEGIDO (223622)' : 'LIBERADO',
+    'Bloqueio': l.protegido ? 'PROTEGIDO' : 'LIBERADO',
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(rows);

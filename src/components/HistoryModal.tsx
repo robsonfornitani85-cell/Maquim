@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FileText,
   X,
@@ -12,6 +12,8 @@ import {
   WifiOff,
   Info,
   MapPin,
+  Upload,
+  Ban,
 } from 'lucide-react';
 import { LocalDistribuicao, OrdemServico } from '../types';
 import {
@@ -24,6 +26,8 @@ import {
 import { openMailClient, openWhatsAppShare, shareOSWithPDFAttachment, MAQUIM_EMAIL_DESTINATARIO } from '../utils/emailDispatcher';
 import { exportOrdensToExcel } from '../utils/excelManager';
 import { normalizeSearch } from '../utils/validation';
+import { importarPDFs } from '../utils/pdfImporter';
+import { restaurarOrdens } from '../data/mockDatabase';
 
 interface HistoryModalProps {
   isOpen: boolean;
@@ -32,6 +36,29 @@ interface HistoryModalProps {
   locaisDistribuicao?: LocalDistribuicao[];
   online?: boolean;
   onUpdateOS?: (os: OrdemServico) => Promise<void> | void;
+  onRefresh?: () => void;
+}
+
+/** Baixa os PDFs originais (OS restaurada) ou gera os PDFs a partir dos dados salvos. */
+function baixarPDFs(os: OrdemServico, tipo: 'todos' | 'instalacao' | 'retirada') {
+  if (os.pdfsOriginais && os.pdfsOriginais.length) {
+    os.pdfsOriginais.forEach(({ nome, blob }) => {
+      const ehRetirada = os.numeroOSRetirada ? nome.includes(os.numeroOSRetirada) : false;
+      if (tipo === 'instalacao' && ehRetirada) return;
+      if (tipo === 'retirada' && !ehRetirada) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nome;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    });
+    return;
+  }
+  if (tipo === 'instalacao') downloadOSInstalacaoPDF(os);
+  else if (tipo === 'retirada') downloadOSRetiradaPDF(os);
+  else if (os.substituiAnterior) downloadAllOSPDFs(os);
+  else downloadOSPDF(os);
 }
 
 const formatData = (d?: string) => {
@@ -47,17 +74,58 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
   locaisDistribuicao = [],
   online = true,
   onUpdateOS,
+  onRefresh,
 }) => {
   const [search, setSearch] = useState('');
-  const [filtro, setFiltro] = useState<'todas' | 'pendentes'>('todas');
+  const [filtro, setFiltro] = useState<'todas' | 'pendentes' | 'anuladas'>('todas');
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
   const [aviso, setAviso] = useState('');
+  const [importando, setImportando] = useState(false);
+  const inputPDFRef = useRef<HTMLInputElement>(null);
 
-  const pendentes = ordens.filter((o) => !o.enviadoEmail).length;
+  // Sempre abre o Histórico completo: sem busca ou filtro esquecidos da última vez
+  useEffect(() => {
+    if (isOpen) {
+      setSearch('');
+      setFiltro('todas');
+      setAviso('');
+    }
+  }, [isOpen]);
+
+  const ativas = ordens.filter((o) => !o.anulada);
+  const anuladas = ordens.filter((o) => o.anulada);
+  const pendentes = ativas.filter((o) => !o.enviadoEmail).length;
+
+  const handleImportarPDFs = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivos = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!arquivos.length) return;
+    setImportando(true);
+    setAviso('Lendo os PDFs...');
+    try {
+      const { ordens: lidas, ignorados } = await importarPDFs(arquivos);
+      const { restauradas, jaExistiam } = await restaurarOrdens(lidas);
+      onRefresh?.();
+      const partes = [`${restauradas.length} OS(s) reincluída(s) no Histórico e na planilha.`];
+      if (restauradas.length) partes.push(restauradas.map((o) => `OS ${o.numeroOS || 's/n'} (Patr. ${o.patrimonio})`).join(', ') + '.');
+      if (jaExistiam.length) partes.push(`${jaExistiam.length} já estava(m) no Histórico.`);
+      if (ignorados.length) partes.push(`Arquivos que não são OS do app: ${ignorados.join(', ')}.`);
+      setAviso(partes.join(' '));
+      setFiltro('todas');
+    } catch (err) {
+      console.error(err);
+      setAviso('Não foi possível ler os PDFs selecionados.');
+    } finally {
+      setImportando(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const s = normalizeSearch(search);
     return ordens.filter((o) => {
+      if (filtro === 'anuladas') {
+        if (!o.anulada) return false;
+      } else if (o.anulada) return false;
       if (filtro === 'pendentes' && o.enviadoEmail) return false;
       if (!s) return true;
       const campos = [
@@ -87,7 +155,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
     return locaisDistribuicao.filter((l) => {
       if (l.status !== 'instalado') return false;
       const temOS = ordens.some(
-        (o) => o.localId === l.id || (o.gatiInstalacao === l.gatiInstalacao && o.patrimonio === l.patrimonioInstalado)
+        (o) => !o.anulada && (o.localId === l.id || (o.gatiInstalacao === l.gatiInstalacao && o.patrimonio === l.patrimonioInstalado))
       );
       if (temOS) return false;
       if (!s) return true;
@@ -140,7 +208,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
               <FileText className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-slate-800">Histórico de OSs ({ordens.length})</h2>
+              <h2 className="text-base sm:text-lg font-bold text-slate-800">Histórico de OSs ({ativas.length})</h2>
               <p className="text-xs text-slate-500">Salvas neste aparelho, com PDFs prontos para reenviar</p>
             </div>
           </div>
@@ -181,7 +249,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
               onClick={() => setFiltro('todas')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${filtro === 'todas' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}
             >
-              Todas ({ordens.length})
+              Todas ({ativas.length})
             </button>
             <button
               type="button"
@@ -190,7 +258,26 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
             >
               E-mail pendente ({pendentes})
             </button>
+            {anuladas.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFiltro('anuladas')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${filtro === 'anuladas' ? 'bg-slate-500 text-white border-slate-500' : 'bg-white text-slate-500 border-slate-300'}`}
+              >
+                Anuladas ({anuladas.length})
+              </button>
+            )}
           </div>
+          <input ref={inputPDFRef} type="file" accept="application/pdf,.pdf" multiple className="hidden" onChange={handleImportarPDFs} />
+          <button
+            type="button"
+            onClick={() => inputPDFRef.current?.click()}
+            disabled={importando}
+            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-dashed border-blue-400 bg-blue-50 text-blue-900 text-xs font-bold disabled:opacity-50"
+          >
+            <Upload className="w-4 h-4" />
+            {importando ? 'Lendo PDFs...' : 'Restaurar OSs a partir dos PDFs (pasta Downloads ou e-mail)'}
+          </button>
           {aviso && (
             <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-semibold">{aviso}</div>
           )}
@@ -208,7 +295,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
             <div className="text-center py-10 text-slate-500 text-sm space-y-2">
               <FileText className="w-10 h-10 mx-auto text-slate-300 stroke-1" />
               <p>
-                {ordens.length === 0
+                {filtro === 'todas' && ativas.length === 0
                   ? 'Nenhuma OS foi registrada neste aparelho ainda.'
                   : 'Nenhuma OS encontrada com esse filtro.'}
               </p>
@@ -239,7 +326,15 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                   <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
                     <Calendar className="w-3 h-3" /> {formatData(os.dataInstalacao)}
                   </span>
-                  {os.enviadoEmail ? (
+                  {os.anulada && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700 flex items-center gap-1">
+                      <Ban className="w-3 h-3" /> Anulada {os.dataAnulacao ? `em ${os.dataAnulacao}` : ''}
+                    </span>
+                  )}
+                  {os.restauradaDePDF && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">Restaurada do PDF</span>
+                  )}
+                  {os.anulada ? null : os.enviadoEmail ? (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1 border border-emerald-200">
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" /> E-mail enviado
                     </span>
@@ -275,7 +370,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5 md:justify-end shrink-0">
-                {!os.enviadoEmail && (
+                {!os.enviadoEmail && !os.anulada && (
                   <button
                     type="button"
                     onClick={() => handleEnviarAgora(os)}
@@ -290,7 +385,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                   <>
                     <button
                       type="button"
-                      onClick={() => downloadAllOSPDFs(os)}
+                      onClick={() => baixarPDFs(os, 'todos')}
                       className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs transition-colors"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -298,7 +393,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => downloadOSInstalacaoPDF(os)}
+                      onClick={() => baixarPDFs(os, 'instalacao')}
                       className="p-2 text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl border border-slate-200"
                       title={`Baixar PDF Instalação (${getOSFilename(os, 'instalacao')})`}
                     >
@@ -306,7 +401,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => downloadOSRetiradaPDF(os)}
+                      onClick={() => baixarPDFs(os, 'retirada')}
                       className="p-2 text-slate-700 hover:text-amber-700 hover:bg-amber-50 rounded-xl border border-slate-200"
                       title={`Baixar PDF Retirada (${getOSFilename(os, 'retirada')})`}
                     >
@@ -316,7 +411,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => downloadOSPDF(os)}
+                    onClick={() => baixarPDFs(os, 'todos')}
                     className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl border border-slate-200"
                     title={`Baixar ${getOSFilename(os, 'instalacao')}`}
                   >

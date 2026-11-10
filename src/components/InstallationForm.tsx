@@ -59,10 +59,6 @@ import { compressMobilePhoto } from '../utils/imageCompressor';
 import {
   downloadOSPDF,
   downloadAllOSPDFs,
-  downloadOSInstalacaoPDF,
-  downloadOSRetiradaPDF,
-  getOSFilename,
-  getEmailSubject,
 } from '../utils/pdfGenerator';
 import {
   updateLocalOrdemServico,
@@ -70,13 +66,7 @@ import {
   updateRetiradaOrdemServico,
 } from '../data/mockDatabase';
 import {
-  openMailClient,
-  openOutlookClassic,
-  openOutlookOffice365Web,
-  openOutlookLiveWeb,
-  openGmailWeb,
   copyEmailContent,
-  openWhatsAppShare,
   shareOSWithPDFAttachment,
   MAQUIM_EMAIL_DESTINATARIO,
 } from '../utils/emailDispatcher';
@@ -2904,568 +2894,82 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
         </div>
       )}
 
-      {/* ETAPA 5: ENVIO OBRIGATÓRIO POR E-MAIL À CONTRATOS MAQUIM */}
+      {/* ETAPA 5: CONCLUSÃO (envio dos PDFs e nova instalação) */}
       {currentStep === 5 && savedOS && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 text-center animate-in zoom-in-95 duration-200 space-y-6">
-          {/* Banner de Status Obrigatório (Pendente vs Concluído) */}
-          {savedOS.envioPendenteOffline && !savedOS.enviadoEmail ? (
-            <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-2xl text-left flex items-start gap-3 shadow-xs">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <Clock className="w-6 h-6" />
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 text-center animate-in zoom-in-95 duration-200 space-y-5 max-w-md mx-auto">
+          {emailEnviadoConfirmado ? (
+            <>
+              <div className="w-20 h-20 mx-auto rounded-full bg-emerald-100 flex items-center justify-center">
+                <CheckCircle2 className="w-12 h-12 text-emerald-600" />
               </div>
-              <div className="flex-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 bg-amber-200 px-2.5 py-0.5 rounded-full">
-                  OS salva · e-mail pendente
-                </span>
-                <h3 className="text-base font-bold text-amber-950 mt-1">Próxima instalação liberada</h3>
-                <p className="text-xs text-amber-900 mt-0.5 leading-relaxed">
-                  A OS, a assinatura e os PDFs estão guardados neste aparelho. Quando tiver internet, envie para{' '}
-                  {MAQUIM_EMAIL_DESTINATARIO} pelo Histórico (botão "Enviar agora").
+              <div>
+                <h2 className="text-2xl font-black text-slate-900">Processo concluído</h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  {savedOS.numeroOS ? `OS #${savedOS.numeroOS}` : 'OS'} · Patrimônio #{savedOS.patrimonio}
+                  {savedOS.substituiAnterior && savedOS.patrimonioAnterior ? ` · Retirada #${savedOS.patrimonioAnterior}` : ''}
                 </p>
+                {savedOS.envioPendenteOffline && !savedOS.enviadoEmail && (
+                  <p className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold">
+                    E-mail pendente: envie pelo Histórico quando tiver internet.
+                  </p>
+                )}
               </div>
-            </div>
-          ) : emailEnviadoConfirmado ? (
-            <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl text-left flex items-start gap-3 shadow-xs">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-200 px-2.5 py-0.5 rounded-full">
-                    ✓ Etapa 5 Concluída
-                  </span>
-                  <span className="text-xs text-emerald-700 font-semibold">
-                    Registrado às {savedOS.dataEnvioEmail || 'Agora'}
-                  </span>
-                </div>
-                <h3 className="text-base font-bold text-emerald-950 mt-1">
-                  E-mail com PDFs Físicos Disparado para {MAQUIM_EMAIL_DESTINATARIO}
-                </h3>
-                <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
-                  Os arquivos da Ordem de Serviço foram anexados e o atendimento foi homologado com sucesso. A próxima instalação está liberada!
-                </p>
-              </div>
-            </div>
+              <button
+                type="button"
+                onClick={handleStartNew}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md text-base"
+              >
+                <Plus className="w-5 h-5" />
+                Iniciar nova instalação
+              </button>
+            </>
           ) : (
-            <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-2xl text-left flex items-start gap-3 shadow-xs">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs animate-bounce">
-                <AlertTriangle className="w-6 h-6" />
+            <>
+              <div className="w-16 h-16 mx-auto rounded-full bg-blue-100 flex items-center justify-center">
+                <FileText className="w-9 h-9 text-[#0D52BD]" />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 bg-amber-200 px-2.5 py-0.5 rounded-full animate-pulse">
-                    ⚠️ Etapa 5 Obrigatória Pendente
-                  </span>
-                  <span className="text-xs text-amber-800 font-bold">
-                    Destino: {MAQUIM_EMAIL_DESTINATARIO}
-                  </span>
-                </div>
-                <h3 className="text-base font-bold text-amber-950 mt-1">
-                  Disparo Obrigatório dos PDFs por E-mail
-                </h3>
-                <p className="text-xs text-amber-900 mt-0.5 leading-relaxed">
-                  Conforme diretriz operacional, a instalação só é considerada concluída e a van liberada para o próximo atendimento após o disparo do e-mail com os PDFs anexos.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <h2 className="text-2xl font-black text-slate-900">
-              {savedOS.numeroOS ? `Ordem de Serviço #${savedOS.numeroOS}` : 'Ordem de Serviço Gerada (OS a definir na planilha)'}
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Assunto Oficial: <span className="font-semibold text-slate-700">{getEmailSubject(savedOS)}</span>
-            </p>
-          </div>
-
-          {/* Checklist das 4 Exigências da Implantação */}
-          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-left max-w-lg mx-auto space-y-2">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Checklist de Conformidade do Atendimento
-            </span>
-            <div className="flex items-center justify-between text-xs py-1 border-b border-slate-200/60">
-              <span className="text-slate-700 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                1. Equipamento novo e GATi vinculados na planilha
-              </span>
-              <span className="text-[10px] font-bold text-emerald-700 font-mono">OK</span>
-            </div>
-            <div className="flex items-center justify-between text-xs py-1 border-b border-slate-200/60">
-              <span className="text-slate-700 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                2. Contadores e foto do relatório impresso arquivados
-              </span>
-              <span className="text-[10px] font-bold text-emerald-700 font-mono">OK</span>
-            </div>
-            <div className="flex items-center justify-between text-xs py-1 border-b border-slate-200/60">
-              <span className="text-slate-700 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                3. Assinatura do cliente com CPF carimbada nos PDFs
-              </span>
-              <span className="text-[10px] font-bold text-emerald-700 font-mono">OK</span>
-            </div>
-            <div className="flex items-center justify-between text-xs py-1">
-              <span className="text-slate-900 font-bold flex items-center gap-2">
-                {emailEnviadoConfirmado ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
-                )}
-                4. Envio obrigatório dos PDFs para {MAQUIM_EMAIL_DESTINATARIO}
-              </span>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  emailEnviadoConfirmado
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-amber-100 text-amber-900 border border-amber-300'
-                }`}
-              >
-                {savedOS.envioPendenteOffline && !savedOS.enviadoEmail ? 'PENDENTE' : emailEnviadoConfirmado ? 'ENVIADO' : 'OBRIGATÓRIO'}
-              </span>
-            </div>
-          </div>
-
-          {/* Cards dos PDFs Gerados Conforme Regras Oficiais */}
-          {savedOS.substituiAnterior ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto text-left">
-              {/* PDF 1: Instalação */}
-              <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 shadow-xs flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold uppercase text-blue-900 bg-blue-100 px-2 py-0.5 rounded-full">
-                      PDF 1 • Instalação
-                    </span>
-                    <span className="text-[10px] text-blue-700 font-mono">
-                      {savedOS.numeroOS ? `OS #${savedOS.numeroOS}` : `Patr #${savedOS.patrimonio}`}
-                    </span>
-                  </div>
-                  <p className="font-mono font-bold text-xs text-blue-950 truncate" title={getOSFilename(savedOS, 'instalacao')}>
-                    {getOSFilename(savedOS, 'instalacao')}
-                  </p>
-                  <p className="text-[11px] text-slate-600 mt-1">
-                    Inicia com dados da impressora nova instalada e finaliza com a retirada.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => downloadOSInstalacaoPDF(savedOS)}
-                  className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Baixar PDF Instalação
-                </button>
-              </div>
-
-              {/* PDF 2: Retirada */}
-              <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 shadow-xs flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold uppercase text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
-                      PDF 2 • Retirada
-                    </span>
-                    <span className="text-[10px] text-amber-800 font-mono">
-                      {savedOS.numeroOSRetirada ? `OS #${savedOS.numeroOSRetirada}` : `Patr #${savedOS.patrimonioAnterior}`}
-                    </span>
-                  </div>
-                  <p className="font-mono font-bold text-xs text-amber-950 truncate" title={getOSFilename(savedOS, 'retirada')}>
-                    {getOSFilename(savedOS, 'retirada')}
-                  </p>
-                  <p className="text-[11px] text-slate-600 mt-1">
-                    Inicia com dados da retirada (contadores Mono/Color) e finaliza com a instalada.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => downloadOSRetiradaPDF(savedOS)}
-                  className="mt-3 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Baixar PDF Retirada
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200 max-w-md mx-auto text-center">
-              <p className="text-xs font-mono font-bold text-blue-900">
-                Arquivo: {getOSFilename(savedOS, 'instalacao')}
-              </p>
-            </div>
-          )}
-
-          {/* Cartão de Resumo */}
-          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 max-w-md mx-auto text-left text-xs space-y-2">
-            <div className="flex justify-between border-b border-slate-200 pb-2">
-              <span className="text-slate-500">Unidade:</span>
-              <span className="font-bold text-slate-800 text-right">{savedOS.clienteInstalacao}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-200 pb-2">
-              <span className="text-slate-500">GATi Instalação:</span>
-              <span className="font-mono font-bold text-slate-800">{savedOS.gatiInstalacao}</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-200 pb-2">
-              <span className="text-slate-500">Patrimônio Novo:</span>
-              <span className="font-mono font-bold text-blue-700">
-                #{savedOS.patrimonio} ({savedOS.modelo})
-              </span>
-            </div>
-            {savedOS.substituiAnterior && (
-              <>
-                <div className="flex justify-between border-b border-slate-200 pb-2">
-                  <span className="text-slate-500">Equipamento Retirado:</span>
-                  <span className="font-mono font-bold text-amber-700">
-                    #{savedOS.patrimonioAnterior} ({savedOS.modeloAnterior})
-                  </span>
-                </div>
-                {savedOS.numeroOSRetirada && (
-                  <div className="flex justify-between border-b border-slate-200 pb-2">
-                    <span className="text-slate-500">Nº OS de Retirada:</span>
-                    <span className="font-mono font-bold text-amber-900">
-                      #{savedOS.numeroOSRetirada}
-                    </span>
-                  </div>
-                )}
-                {savedOS.contadorPaginasFinal && (
-                  <div className="flex justify-between border-b border-slate-200 pb-2 bg-amber-50/60 -mx-2 px-2 py-1 rounded">
-                    <span className="text-amber-900 font-semibold">Contador(es) na Retirada:</span>
-                    <span className="font-mono font-bold text-amber-950">
-                      {savedOS.contadorPaginasFinal}
-                    </span>
-                  </div>
-                )}
-                {savedOS.fotoRelatorioContadorBase64 && (
-                  <div className="flex justify-between border-b border-slate-200 pb-2 text-emerald-700 font-semibold">
-                    <span>Foto do Relatório Impresso:</span>
-                    <span>✓ Anexada na Página 2 dos PDFs</span>
-                  </div>
-                )}
-              </>
-            )}
-            <div className="flex justify-between border-b border-slate-200 pb-2">
-              <span className="text-slate-500">Validado por (Cliente):</span>
-              <span className="font-semibold text-slate-800">
-                {savedOS.responsavelNome} (CPF: {savedOS.responsavelCPF})
-              </span>
-            </div>
-            {savedOS.usuariosTreinados && savedOS.usuariosTreinados.length > 0 && (
-              <div className="flex justify-between border-b border-slate-200 pb-2 bg-blue-50/60 -mx-2 px-2 py-1 rounded">
-                <span className="text-blue-900 font-semibold">Usuários Treinados:</span>
-                <span className="font-semibold text-blue-950 text-right">
-                  {savedOS.usuariosTreinados.join(', ')}
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between pt-1">
-              <span className="text-slate-500">Técnico da Instalação:</span>
-              <span className="font-semibold text-slate-800">
-                {savedOS.tecnicoNome || 'Técnico Maquim'}
-              </span>
-            </div>
-          </div>
-
-          {/* Botão de Disparo Principal Obrigatório */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2 max-w-md mx-auto">
-            {savedOS.substituiAnterior ? (
-              <button
-                type="button"
-                onClick={() => downloadAllOSPDFs(savedOS)}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-300 transition-all text-xs"
-              >
-                <Download className="w-4 h-4" />
-                Baixar 2 PDFs
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => downloadOSPDF(savedOS)}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-300 transition-all text-xs"
-              >
-                <Download className="w-4 h-4" />
-                Baixar PDF
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => handleSendEmailWithAttachment(savedOS)}
-              disabled={emailStatus.sending}
-              className={`flex-2 inline-flex items-center justify-center gap-2 px-6 py-3.5 font-bold rounded-xl shadow-md transition-all text-xs disabled:opacity-50 ${
-                emailEnviadoConfirmado
-                  ? 'bg-emerald-700 hover:bg-emerald-800 text-white'
-                  : 'bg-[#0D52BD] hover:bg-[#0B1B3D] text-white ring-4 ring-blue-500/20 animate-pulse'
-              }`}
-            >
-              <Paperclip className="w-4 h-4 text-blue-200" />
-              {emailStatus.sending
-                ? 'Disparando E-mail...'
-                : emailEnviadoConfirmado
-                ? '✓ E-mail Já Disparado (Clique para Reenviar)'
-                : savedOS.substituiAnterior
-                ? '📧 DISPARAR E-MAIL OBRIGATÓRIO (2 PDFs ANEXOS)'
-                : '📧 DISPARAR E-MAIL OBRIGATÓRIO (COM PDF)'}
-            </button>
-          </div>
-
-          {/* Opções de Disparo por Aplicativo de E-mail */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 max-w-md mx-auto text-left space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Mail className="w-4 h-4 text-[#0D52BD]" />
-                Selecione seu Cliente de E-mail
-              </span>
-              <span className="text-[10px] text-slate-500 font-mono font-bold">
-                {MAQUIM_EMAIL_DESTINATARIO}
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-600">
-              Acione diretamente seu aplicativo instalado no computador ou navegador web:
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* Botão Outlook Classic (Desktop PC) */}
-              <button
-                type="button"
-                onClick={() => {
-                  openOutlookClassic(savedOS);
-                  markEmailAsSent(savedOS);
-                  setEmailStatus({
-                    sending: false,
-                    type: 'info',
-                    message: 'Outlook Classic acionado no Windows! Os PDFs foram salvos na pasta Downloads. O e-mail foi aberto com destinatário e dados preenchidos. Basta anexar os arquivos.',
-                  });
-                }}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-[#0B1B3D] hover:bg-[#0F224A] text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-                title="Abrir o Microsoft Outlook Classic instalado no seu PC com Windows"
-              >
-                <Mail className="w-3.5 h-3.5 text-blue-400" />
-                Outlook Classic (PC)
-              </button>
-
-              {/* Botão Outlook Web (Office 365) */}
-              <button
-                type="button"
-                onClick={() => {
-                  openOutlookOffice365Web(savedOS);
-                  markEmailAsSent(savedOS);
-                  setEmailStatus({
-                    sending: false,
-                    type: 'info',
-                    message: 'Outlook Web aberto em nova aba! Os PDFs foram salvos na pasta Downloads para anexo.',
-                  });
-                }}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-[#0D52BD] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
-                title="Abrir no Outlook Web / Office 365"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-blue-200" />
-                Outlook Web (365)
-              </button>
-
-              {/* Botão Gmail Web */}
-              <button
-                type="button"
-                onClick={() => {
-                  openGmailWeb(savedOS);
-                  markEmailAsSent(savedOS);
-                  setEmailStatus({
-                    sending: false,
-                    type: 'info',
-                    message: 'Gmail Web aberto em nova aba! Os PDFs foram salvos na pasta Downloads para anexo.',
-                  });
-                }}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl shadow-xs transition-colors"
-                title="Abrir no Gmail Web"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-red-500" />
-                Gmail Web
-              </button>
-
-              {/* Botão Copiar Dados */}
-              <button
-                type="button"
-                onClick={handleCopyEmail}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl shadow-xs transition-colors"
-                title="Copiar assunto e texto do e-mail para a área de transferência"
-              >
-                {copiedFeedback ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="text-emerald-700 font-bold">Copiado!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-slate-500" />
-                    Copiar Dados
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Controle de Confirmação Manual do Envio */}
-          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 max-w-md mx-auto text-left">
-            <div>
-              <p className="text-xs font-bold text-slate-800">
-                Confirmação de Envio do E-mail
-              </p>
-              <p className="text-[11px] text-slate-500">
-                {emailEnviadoConfirmado
-                  ? `✓ Confirmado e registrado às ${savedOS.dataEnvioEmail || 'Agora'}`
-                  : 'Necessário para certificar a entrega e desbloquear o próximo atendimento'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (!emailEnviadoConfirmado) {
-                  markEmailAsSent(savedOS);
-                } else {
-                  setEmailEnviadoConfirmado(false);
-                }
-              }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-                emailEnviadoConfirmado
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
-              }`}
-            >
-              {emailEnviadoConfirmado ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  Envio Confirmado ✓
-                </>
-              ) : (
-                <>
-                  <Mail className="w-4 h-4" />
-                  Confirmar Envio Manual
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Card Esclarecedor de Anexos: Celular Real vs Computador */}
-          <div className="bg-amber-50/90 rounded-2xl p-4 border border-amber-300 max-w-md mx-auto text-left text-xs space-y-2.5 shadow-xs">
-            <div className="flex items-center gap-2 text-amber-950 font-bold">
-              <Paperclip className="w-4 h-4 text-amber-700" />
-              <span>Garantia de Envio dos Anexos</span>
-            </div>
-
-            <div className="space-y-2 text-[11px] text-amber-900 leading-relaxed">
-              <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200">
-                <p className="font-bold text-amber-950 flex items-center gap-1.5 mb-1">
-                  <span>📱 No Celular Real dos Técnicos (Android / iPhone):</span>
-                </p>
-                <p className="text-slate-700">
-                  Ao clicar em <strong>"Disparar E-mail Obrigatório"</strong> no celular real, o Android/iOS abre o menu nativo de compartilhamento com os arquivos PDF <strong>já anexados automaticamente</strong> no aplicativo do Gmail ou Outlook.
+              <div>
+                <h2 className="text-xl font-black text-slate-900">
+                  {savedOS.numeroOS ? `OS #${savedOS.numeroOS} salva` : 'OS salva'}
+                </h2>
+                <p className="text-sm text-slate-600 mt-1">
+                  Último passo: enviar os PDFs para {MAQUIM_EMAIL_DESTINATARIO}.
                 </p>
               </div>
 
-              <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200">
-                <p className="font-bold text-amber-950 flex items-center gap-1.5 mb-1">
-                  <span>💻 No Computador (PC / Windows / Emulador):</span>
-                </p>
-                <p className="text-slate-700">
-                  Por norma mundial de segurança de navegadores (RFC 6068), nenhum site pode injetar arquivos sozinho no Outlook de computador. Por isso, os PDFs foram <strong>baixados automaticamente na sua pasta Downloads</strong>. Basta clicar no clipe 📎 do seu Outlook e anexar os arquivos baixados.
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => handleSendEmailWithAttachment(savedOS)}
+                disabled={emailStatus.sending}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-[#0D52BD] hover:bg-[#0B1B3D] disabled:opacity-50 text-white font-bold rounded-2xl shadow-md text-base"
+              >
+                <Send className="w-5 h-5" />
+                {emailStatus.sending ? 'Preparando...' : 'Enviar e-mail com os PDFs'}
+              </button>
 
-              <div className="pt-1 flex items-center justify-between text-[10px] text-emerald-800 font-semibold">
-                <span>✓ Dados, fotos e assinaturas salvos com segurança no sistema</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Sem internet: não bloquear o técnico */}
-          {!emailEnviadoConfirmado && (
-            <div className={`rounded-2xl p-4 border max-w-md mx-auto text-left text-xs space-y-2 ${online ? 'bg-slate-50 border-slate-200' : 'bg-slate-800 border-slate-700 text-white'}`}>
-              <div className="flex items-center gap-2 font-bold">
-                <WifiOff className={`w-4 h-4 ${online ? 'text-slate-500' : 'text-amber-300'}`} />
-                {online ? 'Está sem internet no local?' : 'Você está sem internet agora'}
-              </div>
-              <p className={online ? 'text-slate-600' : 'text-slate-200'}>
-                A OS, as fotos, a assinatura e os PDFs já estão salvos neste aparelho. Libere a próxima instalação e
-                envie o e-mail depois pelo Histórico, quando tiver conexão.
-              </p>
+              <p className="text-[11px] text-slate-500 -mt-2">O endereço é copiado sozinho: no app de e-mail, toque e segure no campo "Para" e escolha Colar.</p>
               <button
                 type="button"
                 onClick={handleEnviarDepois}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl"
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-2xl text-sm"
               >
-                <Clock className="w-4 h-4" />
+                <WifiOff className="w-4 h-4" />
                 Sem internet: enviar depois
               </button>
-            </div>
-          )}
-          {savedOS.envioPendenteOffline && !savedOS.enviadoEmail && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold max-w-md mx-auto text-left">
-              E-mail pendente: esta OS aparece no aviso amarelo do topo e no Histórico até ser enviada.
-            </div>
-          )}
 
-          {/* Feedback de envio de e-mail / anexo */}
-          {emailStatus.message && (
-            <div
-              className={`p-3.5 rounded-2xl text-xs max-w-md mx-auto text-left flex items-start gap-2.5 border ${
-                emailStatus.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                  : emailStatus.type === 'error'
-                  ? 'bg-red-50 text-red-900 border-red-200'
-                  : 'bg-blue-50 text-blue-900 border-blue-200'
-              }`}
-            >
-              <Paperclip className="w-4 h-4 shrink-0 mt-0.5 text-blue-600" />
-              <div>
-                <p className="font-bold">{emailStatus.message}</p>
-                <p className="mt-1 text-[11px] text-slate-600 font-mono">
-                  Destinatário: {MAQUIM_EMAIL_DESTINATARIO}
+              {emailStatus.message && (
+                <p
+                  className={`p-3 rounded-xl text-xs text-left font-semibold border ${
+                    emailStatus.type === 'error'
+                      ? 'bg-red-50 text-red-900 border-red-200'
+                      : 'bg-blue-50 text-blue-900 border-blue-200'
+                  }`}
+                >
+                  {emailStatus.message}
                 </p>
-              </div>
-            </div>
-          )}
-
-          {/* Ações Finais: WhatsApp & Iniciar Próxima Instalação (Bloqueada se não enviada) */}
-          <div className="pt-4 border-t border-slate-200 max-w-md mx-auto space-y-3">
-            {!emailEnviadoConfirmado && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2 text-left">
-                <Lock className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>
-                  A próxima instalação está <strong>bloqueada</strong>. Dispare o e-mail ou confirme o envio para liberar o formulário.
-                </span>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => openWhatsAppShare(savedOS)}
-                className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5"
-              >
-                <Share2 className="w-4 h-4" />
-                Compartilhar via WhatsApp
-              </button>
-
-              {emailEnviadoConfirmado ? (
-                <button
-                  type="button"
-                  onClick={handleStartNew}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-xs"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Iniciar Próxima Instalação →
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="w-full sm:w-auto cursor-not-allowed opacity-50 inline-flex items-center justify-center gap-2 px-6 py-3 bg-slate-200 border border-slate-300 text-slate-500 font-bold rounded-xl text-xs"
-                  title="Envio obrigatório de e-mail pendente"
-                >
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  Próxima Instalação Bloqueada
-                </button>
               )}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
 

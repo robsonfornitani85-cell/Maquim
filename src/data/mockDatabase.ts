@@ -1,12 +1,23 @@
 import { NovoEquipamento, LocalDistribuicao, EquipamentoAnterior, OrdemServico } from '../types';
 import realData from './realContractData.json';
-import { loadOrdens, putOrdem, deleteOrdensWhere } from './osStore';
+import { loadOrdens, putOrdem } from './osStore';
 
-// Senha mestra de proteção definida pelo usuário para o contrato de Lorena
-export const PASSWORD_PROTECTION = '223622';
+// Senha de anulação: o app guarda só a "impressão digital" (hash SHA-256) da senha,
+// nunca a senha em texto. Para trocar a senha, gere um novo hash de
+// 'maquim-lorena:<nova senha>' e substitua abaixo.
+const PASSWORD_HASH = '466203779afe70fdf19565ecb6031672d1f1d9eaca54f08440544c1e2ae9bfb4';
 
-export function verifyProtectionPassword(password: string): boolean {
-  return password.trim() === PASSWORD_PROTECTION;
+export async function verifyProtectionPassword(password: string): Promise<boolean> {
+  try {
+    const data = new TextEncoder().encode(`maquim-lorena:${password.trim()}`);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    const hex = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return hex === PASSWORD_HASH;
+  } catch {
+    return false;
+  }
 }
 
 // Chaves de armazenamento versionadas (v6 com 170 OSs de retirada vinculadas e finalizações de 4423, 8479, 8472)
@@ -200,7 +211,7 @@ export async function saveOrdemServico(os: OrdemServico): Promise<void> {
     saveNovosEquipamentos(novos);
   }
 
-  // 2. Atualiza local de distribuição: preenche patrimônio, série, data e bloqueia com senha 223622
+  // 2. Atualiza local de distribuição: preenche patrimônio, série, data e bloqueia
   const locais = getLocaisDistribuicao();
   const locIndex = findLocalIndex(locais, os.localId, os.gatiInstalacao, os.setor);
   if (locIndex >= 0) {
@@ -208,7 +219,7 @@ export async function saveOrdemServico(os: OrdemServico): Promise<void> {
     locais[locIndex].patrimonioInstalado = os.patrimonio;
     locais[locIndex].serieInstalada = os.numeroSerie;
     locais[locIndex].dataInstalacao = os.dataInstalacao;
-    locais[locIndex].protegido = true; // Bloqueado com senha 223622
+    locais[locIndex].protegido = true; // Bloqueado
     if (os.numeroOS && os.numeroOS.trim()) {
       locais[locIndex].ordemServico = os.numeroOS.trim();
     }
@@ -218,7 +229,7 @@ export async function saveOrdemServico(os: OrdemServico): Promise<void> {
     saveLocaisDistribuicao(locais);
   }
 
-  // 3. Se retirou equipamento anterior: atualiza status, contadores e bloqueia com senha 223622
+  // 3. Se retirou equipamento anterior: atualiza status, contadores e bloqueia
   if (os.substituiAnterior && os.patrimonioAnterior) {
     const retiradas = getEquipamentosAnteriores();
     const retIndex = retiradas.findIndex(r => r.patrimonio === os.patrimonioAnterior);
@@ -229,7 +240,7 @@ export async function saveOrdemServico(os: OrdemServico): Promise<void> {
       retiradas[retIndex].contadorMono = os.contadorMono || '';
       retiradas[retIndex].contadorColor = os.contadorColor || '';
       retiradas[retIndex].contadorFinal = os.contadorPaginasFinal || '';
-      retiradas[retIndex].protegido = true; // Bloqueado com senha 223622
+      retiradas[retIndex].protegido = true; // Bloqueado
       saveEquipamentosAnteriores(retiradas);
     }
   }
@@ -240,13 +251,13 @@ export async function saveOrdemServico(os: OrdemServico): Promise<void> {
 
 /**
  * Anula a instalação de um local e libera o patrimônio de volta para ser instalado.
- * Requer confirmação por senha '223622'.
+ * Requer confirmação pela senha de anulação.
  */
 export async function anularInstalacao(
   localId: string,
   password: string
 ): Promise<{ success: boolean; message: string; patrimonioLiberado?: string }> {
-  if (!verifyProtectionPassword(password)) {
+  if (!(await verifyProtectionPassword(password))) {
     return { success: false, message: 'Senha de proteção incorreta. Acesso não autorizado.' };
   }
 
@@ -283,7 +294,9 @@ export async function anularInstalacao(
 
   // 3. Libera o equipamento anterior retirado nesta OS (identificado pela própria OS)
   const ordensDoLocal = (await loadOrdens()).filter(
-    o => o.localId === localId || (!o.localId && o.gatiInstalacao === gatiInstalacao && o.patrimonio === patInstalado)
+    o =>
+      !o.anulada &&
+      (o.localId === localId || (!o.localId && o.gatiInstalacao === gatiInstalacao && o.patrimonio === patInstalado))
   );
   const patAnterior = ordensDoLocal.find(o => o.patrimonioAnterior)?.patrimonioAnterior;
   const retiradas = getEquipamentosAnteriores();
@@ -298,9 +311,11 @@ export async function anularInstalacao(
     saveEquipamentosAnteriores(retiradas);
   }
 
-  // 4. Remove do histórico somente a(s) OS(s) deste local
-  const idsRemover = new Set(ordensDoLocal.map(o => o.id));
-  await deleteOrdensWhere(o => idsRemover.has(o.id));
+  // 4. A OS NÃO é apagada: fica no Histórico marcada como "Anulada", com os PDFs.
+  const agora = new Date().toLocaleString('pt-BR');
+  for (const o of ordensDoLocal) {
+    await putOrdem({ ...o, anulada: true, dataAnulacao: agora });
+  }
 
   return {
     success: true,
@@ -369,4 +384,35 @@ export function resetAllDataToDefault(): void {
   saveNovosEquipamentos(novos);
   saveLocaisDistribuicao(locais);
   saveEquipamentosAnteriores(retiradas);
+}
+
+/**
+ * Reinclui OSs reconstruídas a partir dos PDFs (Histórico → "Restaurar a partir dos PDFs").
+ * Marca de novo a planilha (equipamento instalado, localização, retirada) e guarda os PDFs originais.
+ * OSs que já estão ativas no Histórico são ignoradas.
+ */
+export async function restaurarOrdens(
+  ordens: OrdemServico[]
+): Promise<{ restauradas: OrdemServico[]; jaExistiam: OrdemServico[] }> {
+  const existentes = (await loadOrdens()).filter((o) => !o.anulada);
+  const restauradas: OrdemServico[] = [];
+  const jaExistiam: OrdemServico[] = [];
+  for (const os of ordens) {
+    const dup = existentes.find(
+      (e) =>
+        (os.numeroOS && e.numeroOS === os.numeroOS) ||
+        (!os.numeroOS && e.patrimonio === os.patrimonio && e.gatiInstalacao === os.gatiInstalacao)
+    );
+    if (dup) {
+      jaExistiam.push(os);
+      continue;
+    }
+    const locais = getLocaisDistribuicao();
+    const idx = findLocalIndex(locais, undefined, os.gatiInstalacao, os.setor);
+    const completa: OrdemServico = { ...os, localId: idx >= 0 ? locais[idx].id : undefined };
+    await saveOrdemServico(completa);
+    restauradas.push(completa);
+    existentes.push(completa);
+  }
+  return { restauradas, jaExistiam };
 }
