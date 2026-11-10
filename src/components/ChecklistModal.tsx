@@ -131,17 +131,17 @@ export const ChecklistModal: React.FC<ChecklistModalProps> = ({ isOpen, onClose 
             </div>
           </div>
 
-          {/* Card 5: Senha de Proteção 223622 */}
+          {/* Card 5: Anulação protegida por senha */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-start gap-3">
             <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center shrink-0 mt-0.5">
               <KeyRound className="w-4 h-4" />
             </div>
             <div className="space-y-1">
               <h4 className="font-bold text-slate-900 text-sm">
-                5. Anulação Segura de Testes com Senha 223622
+                5. Anulação Protegida por Senha
               </h4>
               <p className="text-slate-600 leading-relaxed">
-                Toda instalação concluída é bloqueada por segurança. Se você fizer testes após publicar, basta acessar a aba de planilhas, clicar em <strong>"Anular / Desbloquear"</strong> e digitar a senha <strong>223622</strong>: o patrimônio novo voltará imediatamente a ficar <strong>"Disponível na Van"</strong> e o local voltará para pendente.
+                Toda instalação concluída é bloqueada por segurança. Se você fizer testes após publicar, basta acessar a aba de planilhas, clicar em <strong>"Anular / Desbloquear"</strong> e digitar a senha de anulação (fornecida só pelo responsável): o patrimônio novo voltará imediatamente a ficar <strong>"Disponível na Van"</strong> e o local voltará para pendente.
               </p>
             </div>
           </div>
@@ -244,7 +244,7 @@ export const ChecklistModal: React.FC<ChecklistModalProps> = ({ isOpen, onClose 
         {/* Footer */}
         <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between text-xs">
           <span className="text-slate-500 font-medium">
-            Senha mestra do contrato de Lorena: <strong className="font-mono text-slate-800">223622</strong>
+            Dúvidas sobre anulação: fale com o responsável do contrato.
           </span>
           <button
             type="button"

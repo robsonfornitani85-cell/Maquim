@@ -87,7 +87,8 @@ export default function App() {
     setCurrentView('form');
   };
 
-  const enviosPendentes = ordens.filter((o) => !o.enviadoEmail).length;
+  const ordensAtivas = ordens.filter((o) => !o.anulada);
+  const enviosPendentes = ordensAtivas.filter((o) => !o.enviadoEmail).length;
 
   const totalNovos = novosEquipamentos.length;
   const instaladosNovos = novosEquipamentos.filter((e) => e.status === 'instalado').length;
@@ -206,7 +207,7 @@ export default function App() {
             novosEquipamentos={novosEquipamentos}
             locaisDistribuicao={locaisDistribuicao}
             equipamentosAnteriores={equipamentosAnteriores}
-            ordens={ordens}
+            ordens={ordensAtivas}
             onStartInstallation={handleStartInstallationFromLocation}
             onOpenSpreadsheet={() => setIsSpreadsheetOpen(true)}
             onOpenHistory={() => setIsHistoryOpen(true)}
@@ -241,6 +242,7 @@ export default function App() {
         locaisDistribuicao={locaisDistribuicao}
         online={online}
         onUpdateOS={handleSaveOS}
+        onRefresh={refreshData}
       />
 
       <ChecklistModal

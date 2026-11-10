@@ -28,7 +28,7 @@ export interface LocalDistribuicao {
   patrimonioInstalado?: string;
   serieInstalada?: string;
   dataInstalacao?: string;
-  protegido?: boolean; // Bloqueado com senha 223622 após preenchimento
+  protegido?: boolean; // Bloqueado após preenchimento
 }
 
 export interface EquipamentoAnterior {
@@ -51,7 +51,7 @@ export interface EquipamentoAnterior {
   bandejaSaidaRetirada?: boolean;
   avariasEncontradas?: boolean;
   descricaoAvarias?: string;
-  protegido?: boolean; // Bloqueado com senha 223622 após preenchimento
+  protegido?: boolean; // Bloqueado após preenchimento
 }
 
 export type TipoConexao = 'Via Rede' | 'Via WI-FI' | 'Via USB para IMPRESSÃO';
@@ -122,7 +122,15 @@ export interface OrdemServico {
   
   // Metadados de Envio
   enviadoEmail: boolean;
-  envioPendenteOffline?: boolean; // Sem internet: próxima instalação liberada, envio feito depois
+  envioPendenteOffline?: boolean;
+
+  // Anulação (a OS nunca é apagada: fica no Histórico marcada como anulada)
+  anulada?: boolean;
+  dataAnulacao?: string;
+
+  // OS reconstruída a partir dos PDFs gerados pelo app (importação no Histórico)
+  restauradaDePDF?: boolean;
+  pdfsOriginais?: { nome: string; blob: Blob }[]; // Sem internet: próxima instalação liberada, envio feito depois
   dataEnvioEmail?: string;
   emailDestinatario: string;
 }

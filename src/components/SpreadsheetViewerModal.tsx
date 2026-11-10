@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { NovoEquipamento, LocalDistribuicao, EquipamentoAnterior } from '../types';
 import { exportDistribuicaoToExcel, exportNovosEquipamentosToExcel, exportRetiradasToExcel, parseUploadedExcel } from '../utils/excelManager';
-import { anularInstalacao, PASSWORD_PROTECTION } from '../data/mockDatabase';
+import { anularInstalacao } from '../data/mockDatabase';
 import { DataTable, DataColumn } from './DataTable';
 import { normalizeSearch } from '../utils/validation';
 
@@ -53,7 +53,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
   const [importFeedback, setImportFeedback] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estados para modal de desbloqueio / anulação por senha 223622
+  // Estados para modal de desbloqueio / anulação por senha
   const [anularModalOpen, setAnularModalOpen] = useState(false);
   const [targetGati, setTargetGati] = useState<LocalDistribuicao | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
@@ -119,10 +119,6 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
 
   const handleConfirmAnular = async () => {
     if (!targetGati) return;
-    if (passwordInput.trim() !== PASSWORD_PROTECTION) {
-      setPasswordError(`Senha incorreta! A senha mestra de proteção é ${PASSWORD_PROTECTION}.`);
-      return;
-    }
 
     const res = await anularInstalacao(targetGati.id, passwordInput);
     if (res.success) {
@@ -545,7 +541,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-slate-100 flex justify-between items-center bg-white text-xs text-slate-500">
           <span>
-            Maquim Contratos: sincronizado com as planilhas oficiais de Lorena. Proteção com senha <strong>223622</strong>.
+            Maquim Contratos: sincronizado com as planilhas oficiais de Lorena. Instalações concluídas ficam protegidas por senha.
           </span>
           <button
             type="button"
@@ -557,7 +553,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
         </div>
       </div>
 
-      {/* Modal de Desbloqueio e Anulação de Teste com Senha 223622 */}
+      {/* Modal de Desbloqueio e Anulação (senha conhecida só pelo responsável) */}
       {anularModalOpen && targetGati && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
@@ -579,17 +575,22 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
               <p>
                 <strong>GATi:</strong> {targetGati.gatiInstalacao} — {targetGati.clienteInstalacao}
               </p>
+              {targetGati.setor && (
+                <p>
+                  <strong>Localização:</strong> {targetGati.setor}
+                </p>
+              )}
               <p>
                 <strong>Patrimônio Instalado:</strong> #{targetGati.patrimonioInstalado}
               </p>
               <p className="text-[11px] text-amber-800 pt-1">
-                Ao confirmar, o preenchimento será completamente anulado, o patrimônio novo voltará a ficar <strong>disponível na van</strong> para nova instalação e as células serão desbloqueadas.
+                Ao confirmar, só esta localização volta para pendente e o patrimônio #{targetGati.patrimonioInstalado} volta a ficar <strong>disponível na van</strong>. A OS dela não é apagada: continua no Histórico marcada como <strong>Anulada</strong>, com os PDFs. As outras OSs não são afetadas.
               </p>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                Digite a Senha de Desbloqueio (223622) *
+                Senha de anulação *
               </label>
               <input
                 type="password"
@@ -598,7 +599,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
                   setPasswordInput(e.target.value);
                   setPasswordError('');
                 }}
-                placeholder="Digite a senha 223622..."
+                placeholder="Digite a senha"
                 autoFocus
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               />
