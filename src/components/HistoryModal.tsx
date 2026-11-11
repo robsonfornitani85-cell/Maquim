@@ -27,7 +27,7 @@ import { openMailClient, openWhatsAppShare, shareOSWithPDFAttachment, MAQUIM_EMA
 import { exportOrdensToExcel } from '../utils/excelManager';
 import { normalizeSearch } from '../utils/validation';
 import { importarPDFs } from '../utils/pdfImporter';
-import { restaurarOrdens } from '../data/mockDatabase';
+import { restaurarOrdens, anularInstalacao, verifyProtectionPassword, getNovosEquipamentos, saveNovosEquipamentos, getEquipamentosAnteriores, saveEquipamentosAnteriores } from '../data/mockDatabase';
 
 interface HistoryModalProps {
   isOpen: boolean;
@@ -82,7 +82,11 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
   const [aviso, setAviso] = useState('');
   const [importando, setImportando] = useState(false);
   const inputPDFRef = useRef<HTMLInputElement>(null);
-
+const [osParaAnular, setOsParaAnular] = useState<OrdemServico | null>(null);
+  
+const [erroAnulacao, setErroAnulacao] = useState('');
+  const [senhaAnulacao, setSenhaAnulacao] = useState('');
+  const [anulando, setAnulando] = useState(false);
   // Sempre abre o Histórico completo: sem busca ou filtro esquecidos da última vez
   useEffect(() => {
     if (isOpen) {
@@ -119,14 +123,61 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
       setImportando(false);
     }
   };
-
+  const handleConfirmarAnulacao = async () => {
+    if (!osParaAnular) return;
+    setErroAnulacao('');
+    if (!senhaAnulacao.trim()) {
+      setErroAnulacao('Digite a senha de proteção.');
+      return;
+    }
+    setAnulando(true);
+    try {
+      const ok = await verifyProtectionPassword(senhaAnulacao);
+      if (!ok) {
+        setErroAnulacao('Senha de proteção incorreta.');
+        setAnulando(false);
+        return;
+      }
+      const localMatch = locaisDistribuicao.find(l => l.id === osParaAnular.localId || l.patrimonioInstalado === osParaAnular.patrimonio || (l.gatiInstalacao === osParaAnular.gatiInstalacao && l.setor === osParaAnular.setor));
+      if (localMatch) {
+        await anularInstalacao(localMatch.id, senhaAnulacao);
+      }
+      if (osParaAnular.patrimonio) {
+        const novos = getNovosEquipamentos();
+        const idxN = novos.findIndex(e => e.patrimonio === osParaAnular.patrimonio);
+        if (idxN >= 0) {
+          novos[idxN].status = 'disponivel';
+          saveNovosEquipamentos(novos);
+        }
+      }
+      if (osParaAnular.patrimonioAnterior) {
+        const ant = getEquipamentosAnteriores();
+        const idxA = ant.findIndex(e => e.patrimonio === osParaAnular.patrimonioAnterior);
+        if (idxA >= 0) {
+          ant[idxA].status = 'a_retirar';
+          saveEquipamentosAnteriores(ant);
+        }
+      }
+      await onUpdateOS?.({ ...osParaAnular, anulada: true, dataAnulacao: new Date().toLocaleString('pt-BR') });
+      onRefresh?.();
+      setOsParaAnular(null);
+      setSenhaAnulacao('');
+    } catch (err: any) {
+      setErroAnulacao(err.message || 'Erro ao anular instalação.');
+    } finally {
+      setAnulando(false);
+    }
+  };
+  
   const filtered = useMemo(() => {
     const s = normalizeSearch(search);
     return ordens.filter((o) => {
-      if (filtro === 'anuladas') {
+            if (filtro === 'pendentes') {
+        if (o.anulada || o.enviadoEmail) return false;
+      } else if (filtro === 'anuladas') {
         if (!o.anulada) return false;
-      } else if (o.anulada) return false;
-      if (filtro === 'pendentes' && o.enviadoEmail) return false;
+            }
+      ;
       if (!s) return true;
       const campos = [
         o.numeroOS,
@@ -435,7 +486,17 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                   title="Compartilhar via WhatsApp"
                 >
                   <Share2 className="w-4 h-4" />
-                </button>
+                </button
+                {!os.anulada && (
+                  <button
+                    type="button"
+                    onClick={() => { setOsParaAnular(os); setSenhaAnulacao(''); setErroAnulacao(''); }}
+                    className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200"
+                    title="Anular instalação e voltar patrimônio para disponível"
+                  >
+                    <Ban className="w-3.5 h-3.5" /> Anular
+                  </button>
+                )}>
               </div>
             </div>
           ))}
@@ -464,6 +525,44 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
           )}
         </div>
       </div>
+      {osParaAnular && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100 space-y-4">
+            <h3 className="text-lg font-bold text-slate-800">Confirmar Anulação</h3>
+            <p className="text-sm text-slate-600">
+              Digite a senha de autorização para anular a OS #{osParaAnular.gatiInstalacao || osParaAnular.id}.
+            </p>
+            {erroAnulacao && (
+              <p className="text-xs text-red-600 bg-red-50 p-2 rounded-lg border border-red-200">
+                {erroAnulacao}
+              </p>
+            )}
+            <input
+              type="password"
+              value={senhaAnulacao}
+              onChange={(e) => setSenhaAnulacao(e.target.value)}
+              placeholder="Senha de autorização"
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setOsParaAnular(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmarAnulacao}
+                className="px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl"
+              >
+                Confirmar Anulação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
