@@ -1050,7 +1050,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
 
   return (
     <div className="max-w-3xl mx-auto pb-16">
-      {/* Barra de Progresso das 5 Etapas Oficiais */}
+      <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-2xl shadow-sm text-center"><button type="button" onClick={() => { if (window.confirm("Deseja realmente abandonar o preenchimento atual? Se confirmar, todos os dados digitados serão descartados.")) { handleStartNew(); } }} className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 text-base cursor-pointer">🔄 ABANDONAR & INICIAR NOVO</button></div>{/* Barra de Progresso das 5 Etapas Oficiais */}
       <div className="barra-etapas-fixa bg-white rounded-2xl p-4 shadow-xs border border-slate-200 mb-6 sticky top-2 z-20 backdrop-blur-md bg-white/95">
         <div className="flex items-center justify-between text-xs font-semibold mb-2">
           <span
@@ -1282,7 +1282,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                 </label>
                 <input
                   type="text"
-                  inputMode="numeric"
+                  inputMode="text"
                   enterKeyHint="done"
                   autoComplete="off"
                   value={gatiInstalacao}
@@ -1294,7 +1294,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                   }`}
                 />
                 <datalist id="gati-list">
-                  {Array.from(new Map(locaisDistribuicao.map((l) => [l.gatiInstalacao, l])).values()).map((l) => (
+                  {Array.from(new Map(locaisDistribuicao.map((l) => [l.gatiInstalacao, l])).values()).sort((a, b) => ((a.secretaria||'').localeCompare(b.secretaria||'') || (a.clienteInstalacao||'').localeCompare(b.clienteInstalacao||'') || (a.gatiInstalacao||'').localeCompare(b.gatiInstalacao||''))).map((l) => (
                     <option key={l.id} value={l.gatiInstalacao}>
                       {l.gatiInstalacao} - {l.clienteInstalacao} ({l.secretaria})
                     </option>
@@ -1380,7 +1380,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                   {locaisDoGati.map((loc) => {
                     const ativo = loc.id === selectedLocalId;
                     const instalado = loc.status === 'instalado';
-                    const antigo = anteriorDaLocalizacao(loc.setor);
+                    const antigo = anteriorDaLocalizacao(loc.{l.secretaria} - {l.clienteInstalacao} - GATi {l.gatiInstalacao});
                     const tipoDiferente =
                       equipamentoNovoSelecionado && loc.tipoEquipamento && equipamentoNovoSelecionado.tipo !== loc.tipoEquipamento;
                     return (
