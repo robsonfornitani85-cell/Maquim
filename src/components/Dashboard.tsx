@@ -9,9 +9,7 @@ import {
   Search,
   PlusCircle,
   Download,
-  AlertTriangle,
   ChevronRight,
-  TrendingUp,
 } from 'lucide-react';
 import {
   NovoEquipamento,
@@ -85,7 +83,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-sm text-blue-100/90 leading-relaxed mb-6">
             Processo ágil para o técnico registrar instalações, amarrar os patrimônios aos endereços e
             realizar a retirada dos equipamentos do contrato encerrado com geração automática de Ordem de
-            Serviço para contratos2@maquim.com.br.
+            Serviço em PDF e sincronização na nuvem.
           </p>
 
           <div className="flex flex-wrap gap-3">
@@ -197,7 +195,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <div className="mt-2 text-xs text-slate-500 flex justify-between items-center">
             <span>
-              E-mails enviados: <strong className="text-emerald-700">{ordens.filter((o) => o.enviadoEmail).length}</strong>/{ordens.length}
+              Na nuvem: <strong className="text-emerald-700">{ordens.length}</strong> registradas
             </span>
             <button
               onClick={onOpenHistory}

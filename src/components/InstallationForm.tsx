@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Printer,
   MapPin,
@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileText,
-  Send,
   Download,
   Camera,
   ScanBarcode,
@@ -18,14 +17,10 @@ import {
   ShieldCheck,
   ArrowRight,
   ArrowLeft,
-  Share2,
   Calendar,
   Layers,
   ChevronDown,
   Lock,
-  Paperclip,
-  Mail,
-  Copy,
   ExternalLink,
   Check,
   Plus,
@@ -34,8 +29,7 @@ import {
   Eye,
   Image as ImageIcon,
   Sparkles,
-  WifiOff,
-  Clock,
+  Info,
 } from 'lucide-react';
 import {
   NovoEquipamento,
@@ -65,11 +59,7 @@ import {
   updateLocalOrdemServicoRetirada,
   updateRetiradaOrdemServico,
 } from '../data/mockDatabase';
-import {
-  copyEmailContent,
-  shareOSWithPDFAttachment,
-  MAQUIM_EMAIL_DESTINATARIO,
-} from '../utils/emailDispatcher';
+import { MAQUIM_EMAIL_DESTINATARIO } from '../utils/emailDispatcher';
 
 interface InstallationFormProps {
   novosEquipamentos: NovoEquipamento[];
@@ -80,6 +70,7 @@ interface InstallationFormProps {
   onCancel?: () => void;
   preSelectedLocalId?: string;
   online?: boolean;
+  ordens?: OrdemServico[];
 }
 
 export const InstallationForm: React.FC<InstallationFormProps> = ({
@@ -91,6 +82,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   onCancel,
   preSelectedLocalId,
   online = true,
+  ordens = [],
 }) => {
   // Step indicator: 1 = Equipamento & Local, 2 = Instalação Técnica, 3 = Retirada, 4 = Validação Cliente, 5 = Sucesso/PDF
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -104,6 +96,27 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   const [numeroSerie, setNumeroSerie] = useState('');
   const [modelo, setModelo] = useState('');
 
+  // Verificação de Patrimônio Já Instalado
+  const [equipamentoJaInstaladoInfo, setEquipamentoJaInstaladoInfo] = useState<{
+    patrimonio: string;
+    numeroSerie?: string;
+    modelo?: string;
+    dataInstalacao: string;
+    local: string;
+    setor?: string;
+    os?: string;
+  } | null>(null);
+
+  // Verificação de Equipamento Anterior Já Retirado
+  const [equipamentoJaRetiradoInfo, setEquipamentoJaRetiradoInfo] = useState<{
+    patrimonio: string;
+    numeroSerie?: string;
+    modelo?: string;
+    dataRetirada: string;
+    local: string;
+    osRet?: string;
+  } | null>(null);
+
   // Formulário - Local de Instalação (GATi)
   const [gatiInstalacao, setGatiInstalacao] = useState('');
   const [selectedLocalId, setSelectedLocalId] = useState('');
@@ -115,6 +128,10 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   const [bairro, setBairro] = useState('');
   const [setor, setSetor] = useState('');
   const [responsavelLocalCadastrado, setResponsavelLocalCadastrado] = useState('');
+
+  // Busca móvel refinada de Local (sem sobrescrever digitação do técnico)
+  const [buscaLocalTexto, setBuscaLocalTexto] = useState('');
+  const [mostrarBuscaLocal, setMostrarBuscaLocal] = useState(false);
 
   // Formulário - Detalhes da Instalação (Sem pré-seleção: técnico deve clicar em cada opção)
   const [dataInstalacao, setDataInstalacao] = useState(
@@ -191,6 +208,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   // Persistência automática em LocalStorage (Rascunho anti-fechamento do navegador mobile)
   const DRAFT_STORAGE_KEY = 'maquim_installation_draft_v6';
   const [draftRestored, setDraftRestored] = useState(false);
+  const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
 
 
   // Captura e compressão direta da foto do relatório impresso
@@ -429,41 +447,183 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   // Estados de Validação e Feedback
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [savedOS, setSavedOS] = useState<OrdemServico | null>(null);
-  const [emailEnviadoConfirmado, setEmailEnviadoConfirmado] = useState(false);
-  const [emailStatus, setEmailStatus] = useState<{
-    sending: boolean;
-    message?: string;
-    type?: 'success' | 'info' | 'error';
-  }>({ sending: false });
-  const [copiedFeedback, setCopiedFeedback] = useState(false);
 
-  // Helper para carimbar o envio do e-mail na Ordem de Serviço e liberar a próxima instalação
-  const markEmailAsSent = (targetOS?: OrdemServico) => {
-    const osToUpdate = targetOS || savedOS;
-    if (!osToUpdate) return;
-    const nowStr = new Date().toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      day: '2-digit',
-      month: '2-digit',
-    });
-    const updatedOS: OrdemServico = {
-      ...osToUpdate,
-      enviadoEmail: true,
-      dataEnvioEmail: nowStr,
+  // Identifica se um patrimônio já foi instalado no sistema (em ordens, locais ou novos)
+  const getInstaladoInfo = (patOrSerial: string) => {
+    const clean = patOrSerial.trim().toLowerCase();
+    if (!clean) return null;
+
+    // 1. Ordens salvas ativas (IndexedDB / Servidor)
+    if (ordens && ordens.length > 0) {
+      const foundOS = ordens.find(
+        (o) =>
+          !o.anulada &&
+          (o.patrimonio?.trim().toLowerCase() === clean ||
+            o.numeroSerie?.trim().toLowerCase() === clean)
+      );
+      if (foundOS) {
+        return {
+          patrimonio: foundOS.patrimonio,
+          numeroSerie: foundOS.numeroSerie,
+          modelo: foundOS.modelo,
+          dataInstalacao: foundOS.dataInstalacao || new Date(foundOS.dataRegistro).toLocaleDateString('pt-BR'),
+          local: foundOS.clienteInstalacao || 'Lorena',
+          setor: foundOS.setor || '',
+          os: foundOS.numeroOS || '',
+        };
+      }
+    }
+
+    // 2. Novos equipamentos com status instalado
+    const foundNovo = novosEquipamentos.find(
+      (e) =>
+        (e.patrimonio.trim().toLowerCase() === clean || e.numeroSerie.trim().toLowerCase() === clean) &&
+        e.status === 'instalado'
+    );
+    if (foundNovo) {
+      const local = locaisDistribuicao.find(
+        (l) => l.patrimonioInstalado === foundNovo.patrimonio || l.id === foundNovo.osId
+      );
+      return {
+        patrimonio: foundNovo.patrimonio,
+        numeroSerie: foundNovo.numeroSerie,
+        modelo: foundNovo.modelo,
+        dataInstalacao: foundNovo.dataInstalacao || local?.dataInstalacao || '29/10/2026',
+        local: local?.clienteInstalacao || foundNovo.gatiInstalacao || 'Lorena',
+        setor: local?.setor || '',
+        os: foundNovo.ordemServico || local?.ordemServico || '',
+      };
+    }
+
+    // 3. Locais com status instalado
+    const foundLocal = locaisDistribuicao.find(
+      (l) =>
+        l.status === 'instalado' &&
+        (l.patrimonioInstalado?.trim().toLowerCase() === clean ||
+          l.serieInstalada?.trim().toLowerCase() === clean)
+    );
+    if (foundLocal) {
+      return {
+        patrimonio: foundLocal.patrimonioInstalado || clean,
+        numeroSerie: foundLocal.serieInstalada || '',
+        modelo: foundLocal.modeloPrevisto || '',
+        dataInstalacao: foundLocal.dataInstalacao || '29/10/2026',
+        local: foundLocal.clienteInstalacao,
+        setor: foundLocal.setor || '',
+        os: foundLocal.ordemServico || '',
+      };
+    }
+
+    // 4. Instalações oficiais confirmadas da Maquim (garantia definitiva contra cache antigo)
+    const confirmedMap: Record<string, { modelo: string; data: string; local: string; setor: string; os: string }> = {
+      '8399': { modelo: 'WFM5899', data: '10/11/2026', local: 'PAÇO MUNICIPAL', setor: 'JURÍDICO - PROCURADORES', os: '2026110408' },
+      '8420': { modelo: 'WFM5899', data: '10/11/2026', local: 'PAÇO MUNICIPAL', setor: 'FISCALIZAÇÃO', os: '2026110434' },
+      '8421': { modelo: 'WFM5899', data: '10/11/2026', local: 'PAÇO MUNICIPAL', setor: 'JURÍDICO - SECRETARIA', os: '2026110435' },
+      '8382': { modelo: 'WFM5899', data: '10/11/2026', local: 'PAÇO MUNICIPAL', setor: 'TRIBUTAÇÃO', os: '2026110387' },
+      '8392': { modelo: 'WFM5899', data: '10/11/2026', local: 'PAÇO MUNICIPAL', setor: 'COMPRAS', os: '2026110400' },
+      '8401': { modelo: 'WFM5899', data: '10/11/2026', local: 'PAÇO MUNICIPAL', setor: 'TRIBUTAÇÃO', os: '2026110410' },
+      '8416': { modelo: 'WFM5899', data: '10/11/2026', local: 'PAÇO MUNICIPAL', setor: 'CONTABILIDADE', os: '2026110429' },
+      '8419': { modelo: 'WFM5899', data: '10/11/2026', local: 'PAÇO MUNICIPAL', setor: 'TESOURARIA', os: '2026110433' },
+      '8402': { modelo: 'WFM5899', data: '29/10/2026', local: 'PAÇO MUNICIPAL', setor: 'SECRETARIA DE ADMINISTRAÇÃO', os: '2026110412' },
+      '8408': { modelo: 'WFM5899', data: '29/10/2026', local: 'PAÇO MUNICIPAL', setor: 'TRIBUTAÇÃO - ATENDIMENTO', os: '2026110419' },
+      '8391': { modelo: 'WFM5899', data: '29/10/2026', local: 'PAÇO MUNICIPAL', setor: 'TRIBUTAÇÃO - ATENDIMENTO', os: '2026110398' },
+      '8403': { modelo: 'WFM5899', data: '29/10/2026', local: 'PAÇO MUNICIPAL', setor: 'PROTOCOLO', os: '2026110413' },
+      '8472': { modelo: 'WFM5899', data: '29/10/2026', local: 'PAÇO MUNICIPAL', setor: 'SALA DE PREGÃO', os: '2026110205' },
+      '8479': { modelo: 'WFC5890', data: '29/10/2026', local: 'PAÇO MUNICIPAL', setor: 'DTI', os: '2026100543' },
     };
-    setSavedOS(updatedOS);
-    setEmailEnviadoConfirmado(true);
-    onSaveOS(updatedOS);
+    const foiAnulado =
+      ordens.some((o) => o.anulada && o.patrimonio?.trim().toLowerCase() === clean) &&
+      !ordens.some((o) => !o.anulada && o.patrimonio?.trim().toLowerCase() === clean);
+
+    if (!foiAnulado && confirmedMap[clean]) {
+      const c = confirmedMap[clean];
+      return {
+        patrimonio: clean,
+        numeroSerie: '',
+        modelo: c.modelo,
+        dataInstalacao: c.data,
+        local: c.local,
+        setor: c.setor,
+        os: c.os,
+      };
+    }
+
+    return null;
   };
 
-  const handleCopyEmail = async () => {
-    if (!savedOS) return;
-    const ok = await copyEmailContent(savedOS);
-    if (ok) {
-      setCopiedFeedback(true);
-      setTimeout(() => setCopiedFeedback(false), 3000);
+  // Identifica se um equipamento anterior já foi retirado
+  const getRetiradoInfo = (patOrSerial: string) => {
+    const clean = patOrSerial.trim().toLowerCase();
+    if (!clean) return null;
+
+    if (ordens && ordens.length > 0) {
+      const foundOS = ordens.find(
+        (o) =>
+          !o.anulada &&
+          o.substituiAnterior &&
+          (o.patrimonioAnterior?.trim().toLowerCase() === clean ||
+            o.numeroSerieAnterior?.trim().toLowerCase() === clean)
+      );
+      if (foundOS) {
+        return {
+          patrimonio: foundOS.patrimonioAnterior || clean,
+          numeroSerie: foundOS.numeroSerieAnterior || '',
+          modelo: foundOS.modeloAnterior || '',
+          dataRetirada: foundOS.dataInstalacao || new Date(foundOS.dataRegistro).toLocaleDateString('pt-BR'),
+          local: foundOS.clienteInstalacao || 'Lorena',
+          osRet: foundOS.numeroOSRetirada || '',
+        };
+      }
     }
+
+    const foundRet = equipamentosAnteriores.find(
+      (r) =>
+        (r.patrimonio.trim().toLowerCase() === clean || r.numeroSerie.trim().toLowerCase() === clean) &&
+        r.status === 'retirado'
+    );
+    if (foundRet) {
+      return {
+        patrimonio: foundRet.patrimonio,
+        numeroSerie: foundRet.numeroSerie,
+        modelo: foundRet.modelo,
+        dataRetirada: foundRet.dataRetirada || '29/10/2026',
+        local: foundRet.clienteInstalacao || 'Lorena',
+        osRet: foundRet.ordemServicoRetirada || '',
+      };
+    }
+
+    const confirmedRetMap: Record<string, { modelo: string; data: string; local: string; osRet: string }> = {
+      '4489': { modelo: 'WFM5799', data: '10/11/2026', local: 'PAÇO MUNICIPAL (JURÍDICO - PROCURADORES)', osRet: '2026110586' },
+      '5132': { modelo: 'WFM5799', data: '10/11/2026', local: 'PAÇO MUNICIPAL (FISCALIZAÇÃO)', osRet: '2026110128' },
+      '4715': { modelo: 'WFM5799', data: '10/11/2026', local: 'PAÇO MUNICIPAL (JURÍDICO - SECRETARIA)', osRet: '2026110136' },
+      '4719': { modelo: 'WFM5799', data: '10/11/2026', local: 'PAÇO MUNICIPAL (TRIBUTAÇÃO)', osRet: '2026110139' },
+      '4440': { modelo: 'WFM5799', data: '10/11/2026', local: 'PAÇO MUNICIPAL (COMPRAS)', osRet: '2026110135' },
+      '4602': { modelo: 'WFM5299', data: '10/11/2026', local: 'PAÇO MUNICIPAL (TRIBUTAÇÃO)', osRet: '2026110142' },
+      '4508': { modelo: 'WFM5799', data: '10/11/2026', local: 'PAÇO MUNICIPAL (CONTABILIDADE)', osRet: '2026110130' },
+      '5087': { modelo: 'WFM5799', data: '10/11/2026', local: 'PAÇO MUNICIPAL (TESOURARIA)', osRet: '2026110129' },
+      '4711': { modelo: 'WFM5799', data: '29/10/2026', local: 'PAÇO MUNICIPAL (SECRETARIA DE ADMINISTRAÇÃO)', osRet: '2026110133' },
+      '4717': { modelo: 'WFM5799', data: '29/10/2026', local: 'PAÇO MUNICIPAL (TRIBUTAÇÃO - ATENDIMENTO)', osRet: '2026110137' },
+      '4615': { modelo: 'WFM5299', data: '29/10/2026', local: 'PAÇO MUNICIPAL (TRIBUTAÇÃO - ATENDIMENTO)', osRet: '2026110227' },
+      '4583': { modelo: 'WFM5299', data: '29/10/2026', local: 'PAÇO MUNICIPAL (PROTOCOLO)', osRet: '2026110143' },
+      '4423': { modelo: 'WFC5790', data: '29/10/2026', local: 'PAÇO MUNICIPAL (DTI)', osRet: '2026100562' },
+    };
+    const retFoiAnulado =
+      ordens.some((o) => o.anulada && o.substituiAnterior && o.patrimonioAnterior?.trim().toLowerCase() === clean) &&
+      !ordens.some((o) => !o.anulada && o.substituiAnterior && o.patrimonioAnterior?.trim().toLowerCase() === clean);
+
+    if (!retFoiAnulado && confirmedRetMap[clean]) {
+      const c = confirmedRetMap[clean];
+      return {
+        patrimonio: clean,
+        numeroSerie: '',
+        modelo: c.modelo,
+        dataRetirada: c.data,
+        local: c.local,
+        osRet: c.osRet,
+      };
+    }
+
+    return null;
   };
 
   // Efeito ao selecionar ou mudar o Patrimônio Novo: auto-completa Série, Modelo e Nº da OS vinculada
@@ -473,8 +633,15 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     if (!clean) {
       setNumeroSerie('');
       setModelo('');
+      setOrdemServico('');
+      setEquipamentoJaInstaladoInfo(null);
       return;
     }
+
+    // Verifica bloqueio de equipamento já instalado
+    const instaladoInfo = getInstaladoInfo(clean);
+    setEquipamentoJaInstaladoInfo(instaladoInfo);
+
     const item = novosEquipamentos.find(
       (e) =>
         e.patrimonio.trim() === clean ||
@@ -484,7 +651,6 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       setPatrimonio(item.patrimonio);
       setNumeroSerie(item.numeroSerie);
       setModelo(item.modelo);
-      // Nº da OS de instalação vem do vínculo patrimônio → OS (não é digitado pelo técnico)
       setOrdemServico(item.ordemServico ? item.ordemServico.trim() : '');
     } else {
       setNumeroSerie('');
@@ -543,41 +709,120 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     if (local.ordemServicoRetirada) {
       setOrdemServicoRetirada(local.ordemServicoRetirada.trim());
     }
+    setMostrarBuscaLocal(false);
+    setBuscaLocalTexto('');
     setErrors((prev) => {
-      const { localizacao, ...rest } = prev;
+      const { localizacao, gatiInstalacao: _g, clienteInstalacao: _c, ...rest } = prev;
       return rest;
     });
   };
 
-  // Ao digitar o GATi: preenche os dados do prédio. Se houver uma única localização, já seleciona.
-  const handleSelectGATi = (gati: string) => {
-    setGatiInstalacao(gati);
-    setSelectedLocalId('');
-    const clean = gati.trim();
-    const matches = clean ? locaisDistribuicao.filter((l) => l.gatiInstalacao.trim() === clean) : [];
-    if (matches.length === 0) {
-      setClienteInstalacao('');
-      setSecretaria('');
-      setEndereco('');
-      setBairro('');
-      setSetor('');
-      setResponsavelLocalCadastrado('');
-      return;
+  // Lista de locais para busca móvel: pesquisa por número de GATi, nome do cliente ou secretaria
+  // Ordenada conforme solicitado pelo usuário: Secretaria - Cliente Instalação (GATi Instalação)
+  const locaisFiltrados = useMemo(() => {
+    const q = normalizeSearch(buscaLocalTexto.trim());
+    const map = new Map<string, LocalDistribuicao>();
+
+    locaisDistribuicao.forEach((l) => {
+      if (!q) {
+        const key = `${l.secretaria} - ${l.clienteInstalacao} (${l.gatiInstalacao})`;
+        if (!map.has(key)) map.set(key, l);
+      } else {
+        const matchCli = normalizeSearch(l.clienteInstalacao).includes(q);
+        const matchSec = normalizeSearch(l.secretaria).includes(q);
+        const matchGati = normalizeSearch(l.gatiInstalacao).includes(q);
+        const matchSetor = normalizeSearch(l.setor || '').includes(q);
+        const matchEnd = normalizeSearch(l.endereco || '').includes(q);
+
+        if (matchCli || matchSec || matchGati || matchSetor || matchEnd) {
+          const key = `${l.secretaria} - ${l.clienteInstalacao} (${l.gatiInstalacao})`;
+          if (!map.has(key)) map.set(key, l);
+        }
+      }
+    });
+
+    return Array.from(map.values())
+      .sort((a, b) => {
+        const sec = (a.secretaria || '').localeCompare(b.secretaria || '', 'pt-BR');
+        if (sec !== 0) return sec;
+        const cli = (a.clienteInstalacao || '').localeCompare(b.clienteInstalacao || '', 'pt-BR');
+        if (cli !== 0) return cli;
+        return (a.gatiInstalacao || '').localeCompare(b.gatiInstalacao || '', 'pt-BR');
+      })
+      .slice(0, 35);
+  }, [buscaLocalTexto, locaisDistribuicao]);
+
+  // Ao digitar diretamente no campo GATi (apenas se digitado código exato)
+  const handleSelectGATi = (inputVal: string) => {
+    const clean = inputVal.trim();
+    setGatiInstalacao(clean);
+    if (!clean) return;
+
+    // Busca exata por código GATi
+    const matches = locaisDistribuicao.filter((l) => l.gatiInstalacao.trim() === clean);
+    if (matches.length > 0) {
+      const pendente = matches.find((l) => l.status !== 'instalado');
+      selectLocal(pendente || matches[0]);
     }
-    const pendentes = matches.filter((l) => l.status !== 'instalado');
-    if (matches.length === 1 || pendentes.length === 1) {
-      selectLocal(pendentes[0] || matches[0]);
-      return;
-    }
-    const first = matches[0];
-    setClienteInstalacao(first.clienteInstalacao);
-    setGatiFaturamento(first.gatiFaturamento || '');
-    setSecretaria(first.secretaria);
-    setEndereco(first.endereco);
-    setBairro(first.bairro);
-    setSetor('');
-    setResponsavelLocalCadastrado(first.responsavelLocal);
   };
+
+  // Sugestões inteligentes de localização / setor vinculadas à secretaria e local escolhido
+  const sugestoesLocalizacao = useMemo(() => {
+    if (!gatiInstalacao && !clienteInstalacao) return [];
+    const set = new Set<string>();
+
+    locaisDoGati.forEach((l) => {
+      if (l.setor && l.setor.trim()) set.add(l.setor.trim().toUpperCase());
+    });
+
+    anterioresDoGati.forEach((a) => {
+      if (a.localizacao && a.localizacao.trim()) set.add(a.localizacao.trim().toUpperCase());
+    });
+
+    const isSaude =
+      secretaria.toLowerCase().includes('saude') ||
+      clienteInstalacao.toLowerCase().includes('ubs') ||
+      clienteInstalacao.toLowerCase().includes('esf') ||
+      clienteInstalacao.toLowerCase().includes('saude') ||
+      clienteInstalacao.toLowerCase().includes('posto');
+
+    if (isSaude) {
+      [
+        'RECEPÇÃO',
+        'TRIAGEM',
+        'FARMÁCIA',
+        'CONSULTÓRIO MÉDICO',
+        'ENFERMAGEM',
+        'SALA DE VACINA',
+        'ADMINISTRAÇÃO',
+        'DENTISTA / ODONTO',
+      ].forEach((s) => set.add(s));
+    }
+
+    const isEducacao =
+      secretaria.toLowerCase().includes('educa') ||
+      clienteInstalacao.toLowerCase().includes('escola') ||
+      clienteInstalacao.toLowerCase().includes('creche') ||
+      clienteInstalacao.toLowerCase().includes('emei') ||
+      clienteInstalacao.toLowerCase().includes('emef');
+
+    if (isEducacao) {
+      [
+        'SECRETARIA ESCOLAR',
+        'SALA DOS PROFESSORES',
+        'DIREÇÃO',
+        'COORDENAÇÃO PEDAGÓGICA',
+        'SALA DE INFORMÁTICA',
+        'BIBLIOTECA',
+      ].forEach((s) => set.add(s));
+    }
+
+    if (set.size === 0) {
+      ['RECEPÇÃO', 'ADMINISTRAÇÃO', 'GABINETE', 'DIRETORIA', 'ATENDIMENTO'].forEach((s) => set.add(s));
+    }
+
+    return Array.from(set);
+  }, [gatiInstalacao, clienteInstalacao, secretaria, locaisDoGati, anterioresDoGati]);
 
   // Inicializa o local pré-selecionado (botão "Instalar aqui" da planilha / visão geral)
   useEffect(() => {
@@ -624,8 +869,14 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       setNumeroSerieAnterior('');
       setModeloAnterior('');
       setLocalizacaoAnterior('');
+      setEquipamentoJaRetiradoInfo(null);
       return;
     }
+
+    // Verifica se já consta como retirado
+    const retiradoInfo = getRetiradoInfo(clean);
+    setEquipamentoJaRetiradoInfo(retiradoInfo);
+
     const ret = equipamentosAnteriores.find(
       (r) =>
         r.patrimonio.trim() === clean ||
@@ -660,12 +911,14 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     if (step === 1) {
       if (!patrimonio.trim()) {
         newErrors.patrimonio = 'Informe ou selecione o patrimônio da impressora nova.';
+      } else if (equipamentoJaInstaladoInfo) {
+        newErrors.patrimonio = `Equipamento bloqueado: Patrimônio #${equipamentoJaInstaladoInfo.patrimonio} já foi instalado em ${equipamentoJaInstaladoInfo.dataInstalacao} no local ${equipamentoJaInstaladoInfo.local}!`;
       }
       if (!numeroSerie.trim()) {
         newErrors.numeroSerie = 'Número de série não preenchido.';
       }
       if (!gatiInstalacao.trim()) {
-        newErrors.gatiInstalacao = 'Informe o código GATi do local de instalação.';
+        newErrors.gatiInstalacao = 'Selecione o local de instalação (GATi ou Nome do Local).';
       }
       if (!clienteInstalacao.trim()) {
         newErrors.clienteInstalacao = 'Nome da unidade/cliente de instalação não informado.';
@@ -781,6 +1034,10 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
   };
 
   const handleNext = () => {
+    if (currentStep === 1 && equipamentoJaInstaladoInfo) {
+      alert(`BLOQUEIO DE SEGURANÇA:\nO equipamento Patrimônio #${equipamentoJaInstaladoInfo.patrimonio} (${equipamentoJaInstaladoInfo.modelo || ''}) já foi INSTALADO no dia ${equipamentoJaInstaladoInfo.dataInstalacao} no local ${equipamentoJaInstaladoInfo.local}${equipamentoJaInstaladoInfo.setor ? ` - ${equipamentoJaInstaladoInfo.setor}` : ''} ${equipamentoJaInstaladoInfo.os ? `(OS #${equipamentoJaInstaladoInfo.os})` : ''}!\n\nPor favor, escolha outro patrimônio disponível.`);
+      return;
+    }
     if (validateStep(currentStep)) {
       setCurrentStep((prev) => Math.min(prev + 1, 4));
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -867,7 +1124,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       assinaturaClienteBase64,
       usuariosTreinados: usuariosTreinados.length > 0 ? usuariosTreinados : undefined,
       observacoes,
-      enviadoEmail: false,
+      enviadoEmail: true,
       emailDestinatario: MAQUIM_EMAIL_DESTINATARIO,
     };
 
@@ -897,7 +1154,6 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     }
     setSalvando(false);
     setSavedOS(novaOS);
-    setEmailEnviadoConfirmado(false);
 
     // Limpa o rascunho temporário do armazenamento local
     try {
@@ -915,33 +1171,9 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
       downloadOSPDF(novaOS);
     }
 
-    // Avança para a Etapa 5 (Envio Obrigatório de E-mail)
+    // Avança para a Etapa 5 (Conclusão e novo atendimento)
     setCurrentStep(5);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    // O envio é feito pelo botão "Disparar e-mail" (o celular só permite anexar PDFs
-    // no compartilhamento quando parte de um toque do usuário).
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      setEmailStatus({
-        sending: false,
-        type: 'info',
-        message: 'Sem internet agora. A OS e os PDFs estão salvos neste aparelho. Toque em "Sem internet: enviar depois" para liberar a próxima instalação.',
-      });
-    }
-  };
-
-  // Sem internet: libera a próxima instalação e deixa o e-mail pendente (aparece no aviso e no Histórico)
-  const handleEnviarDepois = () => {
-    if (!savedOS) return;
-    const updated: OrdemServico = { ...savedOS, envioPendenteOffline: true };
-    setSavedOS(updated);
-    onSaveOS(updated);
-    setEmailEnviadoConfirmado(true);
-    setEmailStatus({
-      sending: false,
-      type: 'info',
-      message: 'OS guardada como "e-mail pendente". Quando tiver internet, abra o Histórico e toque em "Enviar agora".',
-    });
   };
 
   // Helper para resetar e iniciar novo atendimento (todos os campos desmarcados / nulos)
@@ -955,6 +1187,10 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     setPatrimonio('');
     setNumeroSerie('');
     setModelo('');
+    setEquipamentoJaInstaladoInfo(null);
+    setEquipamentoJaRetiradoInfo(null);
+    setBuscaLocalTexto('');
+    setMostrarBuscaLocal(false);
     setGatiInstalacao('');
     setSelectedLocalId('');
     setOrdemServico('');
@@ -1001,56 +1237,66 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
     setFotoAvariaBase64(undefined);
     setDescricaoAvarias('');
     setSavedOS(null);
-    setEmailEnviadoConfirmado(false);
-    setEmailStatus({ sending: false });
     setErrors({});
     setCurrentStep(1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Envio de e-mail com anexo real do PDF e carimbo de obrigatoriedade
-  const handleSendEmailWithAttachment = async (targetOS?: OrdemServico) => {
-    const osToShare = targetOS || savedOS;
-    if (!osToShare) return;
-    setEmailStatus({ sending: true, message: `Preparando os PDFs para enviar a ${MAQUIM_EMAIL_DESTINATARIO}...` });
-    try {
-      const result = await shareOSWithPDFAttachment(osToShare);
-      if (!result.success) {
-        setEmailStatus({
-          sending: false,
-          type: 'info',
-          message: result.message || 'Envio cancelado. Toque novamente em "Disparar e-mail" quando quiser.',
-        });
-        return;
-      }
-      markEmailAsSent(osToShare);
-      if (result.method === 'native-share') {
-        setEmailStatus({
-          sending: false,
-          type: 'success',
-          message: `PDF anexado no seu app de e-mail. O destinatário ${MAQUIM_EMAIL_DESTINATARIO} foi COPIADO: no campo "Para", toque e segure e escolha "Colar". Depois toque em Enviar.`,
-        });
-      } else {
-        setEmailStatus({
-          sending: false,
-          type: 'info',
-          message:
-            result.message ||
-            `Arquivo(s) [${result.filenames.join(', ')}] baixado(s)! E-mail aberto para contratos2@maquim.com.br. Basta anexar os arquivos.`,
-        });
-      }
-    } catch (err: any) {
-      setEmailStatus({
-        sending: false,
-        type: 'error',
-        message: 'Não foi possível disparar o compartilhamento automático. Baixe os PDFs e anexe manualmente.',
-      });
-    }
-  };
-
   return (
     <div className="max-w-3xl mx-auto pb-16">
-      <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-2xl shadow-sm text-center"><button type="button" onClick={() => { if (window.confirm("Deseja realmente abandonar o preenchimento atual? Se confirmar, todos os dados digitados serão descartados.")) { handleStartNew(); } }} className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 text-base cursor-pointer">🔄 ABANDONAR & INICIAR NOVO</button></div>{/* Barra de Progresso das 5 Etapas Oficiais */}
+      {/* Botão de Emergência / Recomeçar: Abandonar & Iniciar Novo */}
+      <div className="mb-4">
+        {showAbandonConfirm ? (
+          <div className="p-4 bg-red-50 border-2 border-red-500 rounded-2xl shadow-md animate-in fade-in duration-200">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-red-950">
+                  Deseja realmente abandonar o preenchimento atual?
+                </p>
+                <p className="text-xs text-red-800 mt-1">
+                  Todos os dados digitados neste formulário serão descartados para que você possa iniciar um novo.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleStartNew();
+                      setShowAbandonConfirm(false);
+                    }}
+                    className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors cursor-pointer"
+                  >
+                    Sim, Abandonar e Limpar Tudo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAbandonConfirm(false)}
+                    className="px-4 py-2.5 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Continuar Preenchendo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between p-2.5 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+            <span className="text-xs font-semibold text-slate-600 pl-2">
+              Reiniciar formulário?
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowAbandonConfirm(true)}
+              className="py-1.5 px-3 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl border border-red-200 shadow-2xs transition-colors flex items-center gap-1.5 text-xs cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-red-600" />
+              <span>ABANDONAR & INICIAR NOVO</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Barra de Progresso das 5 Etapas Oficiais */}
       <div className="barra-etapas-fixa bg-white rounded-2xl p-4 shadow-xs border border-slate-200 mb-6 sticky top-2 z-20 backdrop-blur-md bg-white/95">
         <div className="flex items-center justify-between text-xs font-semibold mb-2">
           <span
@@ -1116,32 +1362,28 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
           <span
             className={`flex items-center gap-1.5 ${
               currentStep === 5
-                ? emailEnviadoConfirmado
-                  ? 'text-emerald-700 font-bold'
-                  : 'text-amber-700 font-bold'
+                ? 'text-emerald-700 font-bold'
                 : 'text-slate-400'
             }`}
           >
             <span
               className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] ${
                 currentStep === 5
-                  ? emailEnviadoConfirmado
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-amber-100 text-amber-900 ring-2 ring-amber-400 animate-pulse'
+                  ? 'bg-emerald-100 text-emerald-800 font-bold'
                   : 'bg-slate-100 text-slate-500'
               }`}
             >
               5
             </span>
-            <span className="hidden sm:inline">Envio Obrigatório</span>
-            <span className="sm:hidden">Envio</span>
+            <span className="hidden sm:inline">Conclusão</span>
+            <span className="sm:hidden">Fim</span>
           </span>
         </div>
 
         <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-300 ease-out ${
-              currentStep === 5 && emailEnviadoConfirmado ? 'bg-emerald-600' : 'bg-[#0D52BD]'
+              currentStep === 5 ? 'bg-emerald-600' : 'bg-[#0D52BD]'
             }`}
             style={{ width: `${((currentStep - 1) / 4) * 100}%` }}
           />
@@ -1240,7 +1482,32 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
               </div>
             </div>
 
-            {patrimonio && modelo && (
+            {/* Alerta Destacado: Equipamento Já Instalado (Bloqueio) */}
+            {equipamentoJaInstaladoInfo && (
+              <div className="mt-4 p-4 bg-red-50 border-2 border-red-500 rounded-2xl text-red-950 flex flex-col sm:flex-row items-start gap-3 shadow-md animate-in fade-in duration-200">
+                <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-red-600 text-white font-black text-[11px] uppercase tracking-wider px-2.5 py-0.5 rounded-md">
+                      EQUIPAMENTO JÁ INSTALADO
+                    </span>
+                    {equipamentoJaInstaladoInfo.os && (
+                      <span className="font-mono text-xs font-bold text-red-800 bg-red-100 px-2 py-0.5 rounded border border-red-300">
+                        OS #{equipamentoJaInstaladoInfo.os}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm font-bold text-red-900 mt-1.5 leading-snug">
+                    O equipamento <strong>Patrimônio #{equipamentoJaInstaladoInfo.patrimonio}</strong> ({equipamentoJaInstaladoInfo.modelo || 'Epson'}) já foi <strong>INSTALADO</strong> no dia <strong>{equipamentoJaInstaladoInfo.dataInstalacao}</strong> no local <strong>{equipamentoJaInstaladoInfo.local}{equipamentoJaInstaladoInfo.setor ? ` - ${equipamentoJaInstaladoInfo.setor}` : ''}</strong> {equipamentoJaInstaladoInfo.os ? `(OS #${equipamentoJaInstaladoInfo.os})` : ''}!
+                  </p>
+                  <p className="text-xs text-red-700 mt-1">
+                    Não é permitido reinstalar este patrimônio. Escolha outro equipamento pendente para iniciar uma nova instalação.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {patrimonio && modelo && !equipamentoJaInstaladoInfo && (
               <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-800">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1261,186 +1528,253 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
             )}
           </div>
 
-          {/* Card: Local de Instalação (GATi) */}
+          {/* Card: Local de Instalação (GATi) - Busca Móvel Especializada */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <MapPin className="w-5 h-5" />
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">2. Local de Instalação (Município de Lorena)</h2>
+                  <p className="text-xs text-slate-500">
+                    Busque por nome do local, secretaria ou código GATi
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-800">2. Local de Instalação (Município de Lorena)</h2>
-                <p className="text-xs text-slate-500">
-                  Insira o código GATi Instalação para auto-completar os dados do endereço
-                </p>
-              </div>
+
+              {clienteInstalacao && !mostrarBuscaLocal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarBuscaLocal(true);
+                    setBuscaLocalTexto('');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200/60 transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  Trocar Local
+                </button>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  GATi Instalação (Código) *
-                </label>
-                <input
-                  type="text"
-                  inputMode="text"
-                  enterKeyHint="done"
-                  autoComplete="off"
-                  value={gatiInstalacao}
-                  onChange={(e) => handleSelectGATi(e.target.value)}
-                  placeholder="Ex: 47513, 29119, 32736"
-                  list="gati-list"
-                  className={`campo-obrigatorio w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl font-mono text-base focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
-                    errors.gatiInstalacao ? 'border-red-500 bg-red-50/30' : 'border-slate-200'
-                  }`}
-                />
-                <datalist id="gati-list">
-                  {Array.from(new Map(locaisDistribuicao.map((l) => [l.gatiInstalacao, l])).values()).sort((a, b) => ((a.secretaria||'').localeCompare(b.secretaria||'') || (a.clienteInstalacao||'').localeCompare(b.clienteInstalacao||'') || (a.gatiInstalacao||'').localeCompare(b.gatiInstalacao||''))).map((l) => (
-                    <option key={l.id} value={l.gatiInstalacao}>
-                      {l.gatiInstalacao} - {l.clienteInstalacao} ({l.secretaria})
-                    </option>
-                  ))}
-                </datalist>
-                {errors.gatiInstalacao && (
-                  <p className="text-red-500 text-xs mt-1">{errors.gatiInstalacao}</p>
+            {/* Caso 1: Nenhum Local Selecionado OU Modo de Busca Ativo */}
+            {(!clienteInstalacao || mostrarBuscaLocal) ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Pesquisar Local de Instalação *
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Search className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      inputMode="search"
+                      value={buscaLocalTexto}
+                      onChange={(e) => setBuscaLocalTexto(e.target.value)}
+                      placeholder="Digite parte do nome, secretaria ou código (ex: Maria, Paço, DTI, 28559)..."
+                      className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                      autoFocus={mostrarBuscaLocal}
+                    />
+                    {buscaLocalTexto && (
+                      <button
+                        type="button"
+                        onClick={() => setBuscaLocalTexto('')}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Mostrando opções na ordem: <strong>Secretaria - Cliente Instalação (GATi)</strong>
+                  </p>
+                </div>
+
+                {/* Lista de Opções Encontradas (Mobile-first, com rolagem limpa) */}
+                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl bg-white shadow-xs">
+                  {locaisFiltrados.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500">
+                      Nenhum local encontrado para "{buscaLocalTexto}". Tente outro termo ou código.
+                    </div>
+                  ) : (
+                    locaisFiltrados.map((loc) => {
+                      const isInstalado = loc.status === 'instalado';
+                      return (
+                        <button
+                          key={loc.id}
+                          type="button"
+                          onClick={() => selectLocal(loc)}
+                          className="w-full text-left p-3 hover:bg-indigo-50/60 active:bg-indigo-100 transition-colors flex items-start justify-between gap-2"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-slate-800 leading-snug">
+                              <span className="text-indigo-700">{loc.secretaria}</span> - {loc.clienteInstalacao}{' '}
+                              <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                GATi: {loc.gatiInstalacao}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-1.5">
+                              {loc.setor && (
+                                <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  {loc.setor}
+                                </span>
+                              )}
+                              <span>{loc.endereco}, {loc.bairro}</span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 self-center">
+                            {isInstalado ? (
+                              <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                Já Instalado
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                Selecionar
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                {mostrarBuscaLocal && clienteInstalacao && (
+                  <div className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => setMostrarBuscaLocal(false)}
+                      className="text-xs font-semibold text-slate-600 hover:text-slate-800 underline"
+                    >
+                      Cancelar e manter local selecionado anteriormente
+                    </button>
+                  </div>
                 )}
               </div>
+            ) : (
+              /* Caso 2: Local já selecionado - Exibição Clara e Fixa */
+              <div className="space-y-4">
+                <div className="p-4 bg-indigo-50/70 border-2 border-indigo-200 rounded-2xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-indigo-100">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-bold text-xs uppercase tracking-wider">
+                        {secretaria}
+                      </span>
+                      <span className="font-mono text-xs font-bold text-indigo-950 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                        GATi Instalação: #{gatiInstalacao}
+                      </span>
+                      {gatiFaturamento && gatiFaturamento !== gatiInstalacao && (
+                        <span className="text-[11px] text-slate-500">
+                          (Fat: #{gatiFaturamento})
+                        </span>
+                      )}
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>Nº da OS de Instalação</span>
-                  <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium">
-                    <Lock className="w-3 h-3 text-slate-400" /> Automático
-                  </span>
-                </label>
-                <div
-                  className={`w-full px-3.5 py-2.5 border rounded-xl text-sm font-mono font-bold ${
-                    osInstalacaoVinculada
-                      ? 'bg-blue-50 border-blue-200 text-blue-900'
-                      : 'bg-slate-100 border-slate-200 text-slate-400'
-                  }`}
-                >
-                  {osInstalacaoVinculada ? `#${osInstalacaoVinculada}` : patrimonio ? 'Sem OS vinculada' : 'Vem do patrimônio'}
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  {osInstalacaoVinculada
-                    ? `Vinculada ao patrimônio #${patrimonio}. Não precisa digitar.`
-                    : patrimonio
-                    ? 'Este patrimônio ainda não tem OS na planilha; o escritório lança depois.'
-                    : 'Preenchida sozinha ao escolher o patrimônio.'}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>Secretaria</span>
-                  <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-medium">
-                    <Lock className="w-3 h-3 text-slate-400" /> Bloqueado
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  value={secretaria}
-                  readOnly
-                  tabIndex={-1}
-                  placeholder="Preenchido via GATi"
-                  className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 cursor-not-allowed select-none"
-                />
-              </div>
-            </div>
-
-            {/* LOCALIZAÇÕES deste GATi: onde cada equipamento deve ser instalado */}
-            {locaisDoGati.length > 0 && (
-              <div
-                data-erro={errors.localizacao ? 'true' : undefined}
-                className={`mb-5 rounded-2xl border-2 p-3 ${
-                  errors.localizacao
-                    ? 'border-red-500 bg-red-50/40'
-                    : locaisDoGati.length > 1 && !selectedLocalId
-                    ? 'border-amber-400 bg-amber-50/60'
-                    : 'border-indigo-300 bg-indigo-50/50'
-                }`}
-              >
-                <div className="flex items-start gap-2 mb-2.5">
-                  <MapPin className="w-5 h-5 text-indigo-700 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-black text-indigo-950 uppercase tracking-wide">
-                      {locaisDoGati.length > 1
-                        ? `Localizações neste local (${locaisDoGati.length})`
-                        : 'Localização de instalação'}
+                  <div className="mt-2.5">
+                    <h3 className="text-base font-black text-slate-900 leading-tight">
+                      {clienteInstalacao}
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      {endereco}, {bairro}
                     </p>
-                    <p className="text-[11px] text-indigo-900/80">
-                      {locaisDoGati.length > 1
-                        ? 'Toque na localização onde este equipamento está sendo instalado.'
-                        : 'Local onde o equipamento deve ser instalado.'}
-                    </p>
+                    {responsavelLocalCadastrado && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Responsável cadastrado: <span className="font-semibold text-slate-700">{responsavelLocalCadastrado}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  {locaisDoGati.map((loc) => {
-                    const ativo = loc.id === selectedLocalId;
-                    const instalado = loc.status === 'instalado';
-                    const antigo = anteriorDaLocalizacao(loc.{l.secretaria} - {l.clienteInstalacao} - GATi {l.gatiInstalacao});
-                    const tipoDiferente =
-                      equipamentoNovoSelecionado && loc.tipoEquipamento && equipamentoNovoSelecionado.tipo !== loc.tipoEquipamento;
-                    return (
-                      <button
-                        key={loc.id}
-                        type="button"
-                        disabled={instalado}
-                        onClick={() => selectLocal(loc)}
-                        className={`w-full text-left p-3 rounded-xl border-2 flex items-start gap-3 transition-all ${
-                          ativo
-                            ? 'border-indigo-600 bg-white ring-4 ring-indigo-500/20 shadow-sm'
-                            : instalado
-                            ? 'border-emerald-200 bg-emerald-50/60 opacity-70'
-                            : 'border-slate-200 bg-white hover:border-indigo-300'
-                        }`}
-                      >
-                        <span
-                          className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                            ativo ? 'border-indigo-600 bg-indigo-600' : instalado ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'
-                          }`}
-                        >
-                          {(ativo || instalado) && <Check className="w-3 h-3 text-white" />}
-                        </span>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-base font-black text-slate-900 uppercase leading-tight">
-                            {loc.setor && loc.setor.trim() ? loc.setor : loc.clienteInstalacao}
-                          </span>
-                          <span className="flex flex-wrap gap-1.5 mt-1 text-[11px]">
+                {/* Sub-localizações deste GATi (quando o prédio tem múltiplos setores/impressoras) */}
+                {locaisDoGati.length > 1 && (
+                  <div
+                    data-erro={errors.localizacao ? 'true' : undefined}
+                    className={`rounded-2xl border-2 p-3 ${
+                      errors.localizacao
+                        ? 'border-red-500 bg-red-50/40'
+                        : !selectedLocalId
+                        ? 'border-amber-400 bg-amber-50/60'
+                        : 'border-indigo-300 bg-indigo-50/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2 mb-2.5">
+                      <MapPin className="w-5 h-5 text-indigo-700 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-black text-indigo-950 uppercase tracking-wide">
+                          Selecione o Setor / Localização neste prédio ({locaisDoGati.length})
+                        </p>
+                        <p className="text-[11px] text-indigo-900/80">
+                          Toque no setor exato onde este equipamento está sendo instalado:
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {locaisDoGati.map((loc) => {
+                        const ativo = loc.id === selectedLocalId;
+                        const instalado = loc.status === 'instalado';
+                        const antigo = anteriorDaLocalizacao(loc.setor);
+                        return (
+                          <button
+                            key={loc.id}
+                            type="button"
+                            disabled={instalado}
+                            onClick={() => selectLocal(loc)}
+                            className={`w-full text-left p-3 rounded-xl border-2 flex items-start gap-3 transition-all ${
+                              ativo
+                                ? 'border-indigo-600 bg-white ring-4 ring-indigo-500/20 shadow-sm'
+                                : instalado
+                                ? 'border-emerald-200 bg-emerald-50/60 opacity-70'
+                                : 'border-slate-200 bg-white hover:border-indigo-300'
+                            }`}
+                          >
                             <span
-                              className={`px-1.5 py-0.5 rounded font-bold ${
-                                loc.tipoEquipamento === 'Color' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'
+                              className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                                ativo ? 'border-indigo-600 bg-indigo-600' : instalado ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'
                               }`}
                             >
-                              {loc.modeloPrevisto} ({loc.tipoEquipamento})
+                              {(ativo || instalado) && <Check className="w-3 h-3 text-white" />}
                             </span>
-                            {instalado ? (
-                              <span className="px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
-                                Já instalado{loc.patrimonioInstalado ? ` #${loc.patrimonioInstalado}` : ''}
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-black text-slate-900 uppercase leading-tight">
+                                {loc.setor && loc.setor.trim() ? loc.setor : loc.clienteInstalacao}
                               </span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded font-bold bg-amber-100 text-amber-800">Pendente</span>
-                            )}
-                            {antigo && (
-                              <span className="px-1.5 py-0.5 rounded font-semibold bg-amber-50 text-amber-900 border border-amber-200">
-                                Retirar: #{antigo.patrimonio}
-                                {antigo.conectividadeIp ? ` · IP ${antigo.conectividadeIp}` : ''}
+                              <span className="flex flex-wrap gap-1.5 mt-1 text-[11px]">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded font-bold ${
+                                    loc.tipoEquipamento === 'Color' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'
+                                  }`}
+                                >
+                                  {loc.modeloPrevisto} ({loc.tipoEquipamento})
+                                </span>
+                                {instalado ? (
+                                  <span className="px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800">
+                                    Já instalado{loc.patrimonioInstalado ? ` #${loc.patrimonioInstalado}` : ''}
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded font-bold bg-amber-100 text-amber-800">Pendente</span>
+                                )}
+                                {antigo && (
+                                  <span className="px-1.5 py-0.5 rounded font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                                    Retirar: #{antigo.patrimonio}
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </span>
-                          {ativo && tipoDiferente && (
-                            <span className="block mt-1 text-[11px] font-bold text-rose-700">
-                              Atenção: previsto {loc.tipoEquipamento}, mas o patrimônio #{patrimonio} é {equipamentoNovoSelecionado?.tipo}.
                             </span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {errors.localizacao && <p className="text-red-600 text-xs mt-2 font-bold">{errors.localizacao}</p>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {errors.localizacao && <p className="text-red-600 text-xs mt-2 font-bold">{errors.localizacao}</p>}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1516,6 +1850,45 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                     placeholder="Ex: Gabinete, Recepção, Secretaria"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-base text-slate-800"
                   />
+
+                  {/* Aviso para unidades como UBS sem localizações pré-cadastradas na planilha */}
+                  {clienteInstalacao && locaisDoGati.every((l) => !l.setor || !l.setor.trim()) && (
+                    <div className="mt-2.5 p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs flex items-start gap-2">
+                      <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold">Aviso de Localização:</p>
+                        <p>
+                          Este endereço/unidade não possui localizações específicas pré-cadastradas na planilha.
+                          Valide a localização exata diretamente com o responsável do local (ex: Recepção, Triagem, Farmácia, Consultório, etc.).
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sugestões rápidas de localização em tags */}
+                  {clienteInstalacao && sugestoesLocalizacao.length > 0 && (
+                    <div className="mt-2.5">
+                      <span className="text-[11px] font-semibold text-slate-500 block mb-1">
+                        Sugestões de localização (toque para preencher):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sugestoesLocalizacao.map((sug: string) => (
+                          <button
+                            key={sug}
+                            type="button"
+                            onClick={() => setSetor(sug)}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                              setor.toUpperCase() === sug
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/50'
+                            }`}
+                          >
+                            {sug}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {responsavelLocalCadastrado && (
@@ -2084,6 +2457,24 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                       )}
                     </div>
                   </div>
+
+                  {/* Alerta de Equipamento Anterior Já Retirado */}
+                  {equipamentoJaRetiradoInfo && (
+                    <div className="p-3 bg-amber-100 border-2 border-amber-400 rounded-xl text-amber-950 flex items-start gap-2.5 text-xs shadow-xs animate-in fade-in">
+                      <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-bold text-sm text-amber-950">
+                          ⚠️ Consta como RETIRADO: Patrimônio #{equipamentoJaRetiradoInfo.patrimonio} ({equipamentoJaRetiradoInfo.modelo || ''})
+                        </p>
+                        <p className="mt-0.5 text-xs text-amber-900">
+                          Este equipamento já foi recolhido no dia <strong>{equipamentoJaRetiradoInfo.dataRetirada}</strong> no local <strong>{equipamentoJaRetiradoInfo.local}</strong> {equipamentoJaRetiradoInfo.osRet ? `(OS Ret: #${equipamentoJaRetiradoInfo.osRet})` : ''}.
+                        </p>
+                        <p className="mt-1 text-[11px] text-amber-800">
+                          Confira se é realmente este patrimônio físico que está no local antes de prosseguir.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Equipamentos do contrato anterior neste local: toque para escolher */}
                   {anterioresDoGati.length > 0 && (
@@ -2802,7 +3193,7 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
             </div>
 
             {/* Técnico Responsável */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 pt-4 border-t border-slate-100">
+            <div className="space-y-3 mb-4 pt-4 border-t border-slate-100">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   Técnico Responsável Maquim *
@@ -2840,18 +3231,6 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                   </a>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  E-mail de Destino da Ordem de Serviço
-                </label>
-                <input
-                  type="text"
-                  value={MAQUIM_EMAIL_DESTINATARIO}
-                  readOnly
-                  className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl font-mono text-xs text-slate-600 cursor-not-allowed"
-                />
-              </div>
             </div>
 
             {/* Observações adicionais */}
@@ -2884,8 +3263,8 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
               disabled={salvando}
               className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#0D52BD] hover:bg-[#0B1B3D] disabled:opacity-60 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm"
             >
-              <Mail className="w-5 h-5 text-blue-200" />
-              {salvando ? 'Salvando no aparelho...' : 'Salvar OS e gerar PDFs →'}
+              <CheckCircle2 className="w-5 h-5 text-blue-200" />
+              {salvando ? 'Salvando na nuvem...' : 'Finalizar OS e gerar PDFs →'}
             </button>
           </div>
           {erroSalvar && (
@@ -2894,82 +3273,79 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
         </div>
       )}
 
-      {/* ETAPA 5: CONCLUSÃO (envio dos PDFs e nova instalação) */}
-      {currentStep === 5 && savedOS && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 text-center animate-in zoom-in-95 duration-200 space-y-5 max-w-md mx-auto">
-          {emailEnviadoConfirmado ? (
-            <>
-              <div className="w-20 h-20 mx-auto rounded-full bg-emerald-100 flex items-center justify-center">
-                <CheckCircle2 className="w-12 h-12 text-emerald-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-black text-slate-900">Processo concluído</h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  {savedOS.numeroOS ? `OS #${savedOS.numeroOS}` : 'OS'} · Patrimônio #{savedOS.patrimonio}
-                  {savedOS.substituiAnterior && savedOS.patrimonioAnterior ? ` · Retirada #${savedOS.patrimonioAnterior}` : ''}
-                </p>
-                {savedOS.envioPendenteOffline && !savedOS.enviadoEmail && (
-                  <p className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold">
-                    E-mail pendente: envie pelo Histórico quando tiver internet.
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={handleStartNew}
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md text-base"
-              >
-                <Plus className="w-5 h-5" />
-                Iniciar nova instalação
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="w-16 h-16 mx-auto rounded-full bg-blue-100 flex items-center justify-center">
-                <FileText className="w-9 h-9 text-[#0D52BD]" />
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-slate-900">
-                  {savedOS.numeroOS ? `OS #${savedOS.numeroOS} salva` : 'OS salva'}
-                </h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  Último passo: enviar os PDFs para {MAQUIM_EMAIL_DESTINATARIO}.
-                </p>
-              </div>
+      {/* ETAPA 5: CONCLUSÃO (Instalação realizada com sucesso) */}
+      {currentStep === 5 && (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 text-center animate-in zoom-in-95 duration-200 space-y-6 max-w-lg mx-auto">
+          <div className="w-20 h-20 mx-auto rounded-full bg-emerald-100 flex items-center justify-center">
+            <CheckCircle2 className="w-12 h-12 text-emerald-600" />
+          </div>
 
-              <button
-                type="button"
-                onClick={() => handleSendEmailWithAttachment(savedOS)}
-                disabled={emailStatus.sending}
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-[#0D52BD] hover:bg-[#0B1B3D] disabled:opacity-50 text-white font-bold rounded-2xl shadow-md text-base"
-              >
-                <Send className="w-5 h-5" />
-                {emailStatus.sending ? 'Preparando...' : 'Enviar e-mail com os PDFs'}
-              </button>
+          <div>
+            <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-full border border-emerald-200 mb-2">
+              Salvo na Nuvem Firebase e no Aparelho
+            </span>
+            <h2 className="text-2xl font-black text-slate-900">Processo Realizado com Sucesso!</h2>
+            <p className="text-sm text-slate-600 mt-1">
+              Todos os dados, fotos e assinaturas foram gravados no banco em nuvem e os PDFs foram baixados automaticamente neste dispositivo.
+            </p>
+          </div>
 
-              <p className="text-[11px] text-slate-500 -mt-2">O endereço é copiado sozinho: no app de e-mail, toque e segure no campo "Para" e escolha Colar.</p>
-              <button
-                type="button"
-                onClick={handleEnviarDepois}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-2xl text-sm"
-              >
-                <WifiOff className="w-4 h-4" />
-                Sem internet: enviar depois
-              </button>
-
-              {emailStatus.message && (
-                <p
-                  className={`p-3 rounded-xl text-xs text-left font-semibold border ${
-                    emailStatus.type === 'error'
-                      ? 'bg-red-50 text-red-900 border-red-200'
-                      : 'bg-blue-50 text-blue-900 border-blue-200'
-                  }`}
-                >
-                  {emailStatus.message}
-                </p>
+          {savedOS ? (
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left text-xs space-y-2">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                <span className="text-slate-500 font-medium">Ordem de Serviço (Instalação):</span>
+                <span className="font-mono font-bold text-blue-700">{savedOS.numeroOS ? `#${savedOS.numeroOS}` : 'Sem OS vinculada'}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                <span className="text-slate-500 font-medium">Novo Equipamento:</span>
+                <span className="font-mono font-bold text-slate-900">Patr. #{savedOS.patrimonio} ({savedOS.modelo})</span>
+              </div>
+              {savedOS.substituiAnterior && savedOS.patrimonioAnterior && (
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                  <span className="text-slate-500 font-medium">Equipamento Retirado:</span>
+                  <span className="font-mono font-bold text-amber-800">
+                    Patr. #{savedOS.patrimonioAnterior} {savedOS.numeroOSRetirada ? `(OS Ret: #${savedOS.numeroOSRetirada})` : ''}
+                  </span>
+                </div>
               )}
-            </>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Local / Unidade:</span>
+                <span className="font-bold text-slate-800 text-right">{savedOS.clienteInstalacao} {savedOS.setor ? `(${savedOS.setor})` : ''}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left text-xs">
+              <p className="text-slate-700 font-medium">A ordem de serviço foi arquivada no Histórico com sucesso e o equipamento foi marcado como instalado.</p>
+            </div>
           )}
+
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={handleStartNew}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg text-base transition-all transform active:scale-98 cursor-pointer"
+            >
+              <Plus className="w-5 h-5" />
+              INICIAR NOVA INSTALAÇÃO
+            </button>
+
+            {savedOS && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (savedOS.substituiAnterior) {
+                    downloadAllOSPDFs(savedOS);
+                  } else {
+                    downloadOSPDF(savedOS);
+                  }
+                }}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs transition-colors"
+              >
+                <Download className="w-4 h-4 text-slate-500" />
+                Baixar Cópia em PDF desta OS (Opcional)
+              </button>
+            )}
+          </div>
         </div>
       )}
 

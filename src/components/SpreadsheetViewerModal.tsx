@@ -33,6 +33,10 @@ interface SpreadsheetViewerModalProps {
   onUpdateOSRetirada?: (localId: string, numeroOSRetirada: string) => void;
   onResetData?: () => void;
   onRefreshData?: () => void;
+  isAdmin?: boolean;
+  canAnnul?: boolean;
+  canManageSpreadsheets?: boolean;
+  onAnnulLocal?: (local: LocalDistribuicao, patrimonioLiberado?: string) => Promise<void> | void;
 }
 
 export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
@@ -46,10 +50,15 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
   onUpdateOSRetirada,
   onResetData,
   onRefreshData,
+  isAdmin = false,
+  canAnnul = false,
+  canManageSpreadsheets = true,
+  onAnnulLocal,
 }) => {
   const [activeTab, setActiveTab] = useState<'locais' | 'novos' | 'retiradas'>('locais');
   const [search, setSearch] = useState('');
   const [resetFeedback, setResetFeedback] = useState(false);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [importFeedback, setImportFeedback] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -97,12 +106,11 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
   if (!isOpen) return null;
 
   const handleReset = () => {
-    if (
-      !window.confirm(
-        'Recarregar as planilhas originais? As marcações de instalado/retirado feitas neste aparelho voltam ao estado original. As OSs do Histórico (com PDFs) são mantidas.'
-      )
-    )
-      return;
+    setConfirmResetOpen(true);
+  };
+
+  const confirmResetData = () => {
+    setConfirmResetOpen(false);
     if (onResetData) {
       onResetData();
       setResetFeedback(true);
@@ -119,11 +127,20 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
 
   const handleConfirmAnular = async () => {
     if (!targetGati) return;
+    if (!isAdmin || !canAnnul) {
+      setPasswordError('Seu usuário não tem permissão para anular instalações sincronizadas na nuvem.');
+      return;
+    }
 
     const res = await anularInstalacao(targetGati.id, passwordInput);
     if (res.success) {
+      try {
+        await onAnnulLocal?.(targetGati, res.patrimonioLiberado);
+      } catch (err: any) {
+        setPasswordError(err?.message || 'Erro ao sincronizar anulação na nuvem.');
+        return;
+      }
       setAnularSuccessMsg(res.message);
-      // Atualiza a tela SEM recarregar as planilhas (antes isso apagava todo o histórico de OSs)
       onRefreshData?.();
       setTimeout(() => {
         setAnularModalOpen(false);
@@ -249,14 +266,21 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
       className: 'text-right',
       render: (local) =>
         local.status === 'instalado' ? (
-          <button
-            type="button"
-            onClick={() => handleOpenAnularModal(local)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold text-[11px] rounded-lg transition-colors shadow-xs whitespace-nowrap"
-          >
-            <Unlock className="w-3 h-3" />
-            Anular / Desbloquear
-          </button>
+          canAnnul ? (
+            <button
+              type="button"
+              onClick={() => handleOpenAnularModal(local)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold text-[11px] rounded-lg transition-colors shadow-xs whitespace-nowrap"
+            >
+              <Unlock className="w-3 h-3" />
+              Anular / Desbloquear
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-600 border border-slate-200 font-semibold text-[11px] rounded-lg whitespace-nowrap">
+              <Lock className="w-3 h-3" />
+              Bloqueado
+            </span>
+          )
         ) : (
           <button
             type="button"
@@ -406,52 +430,58 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              accept=".xlsx,.xls,.csv"
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-800 text-xs font-semibold rounded-xl transition-all shadow-xs"
-              title="Importar planilha Excel baixada do OneDrive para atualizar as OSs em lote"
-            >
-              <Upload className="w-3.5 h-3.5 text-blue-600" />
-              Importar Excel (.xlsx)
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-500 hover:text-blue-700 text-xs font-semibold rounded-xl transition-all shadow-xs"
-              title="Restaurar dados originais das planilhas do OneDrive"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              {resetFeedback ? 'Restaurado com Sucesso!' : 'Recarregar Planilhas Originais'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (activeTab === 'novos') {
-                  exportNovosEquipamentosToExcel(novosEquipamentos);
-                } else if (activeTab === 'retiradas') {
-                  exportRetiradasToExcel(equipamentosAnteriores);
-                } else {
-                  exportDistribuicaoToExcel(locaisDistribuicao);
-                }
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs"
-              title="Baixar planilha Excel atualizada"
-            >
-              <Download className="w-3.5 h-3.5" />
-              {activeTab === 'novos'
-                ? 'Exportar Novos + OS (.xlsx)'
-                : activeTab === 'retiradas'
-                ? 'Exportar Retiradas + OS (.xlsx)'
-                : 'Exportar Distribuição (.xlsx)'}
-            </button>
+            {canManageSpreadsheets && (
+              <>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-800 text-xs font-semibold rounded-xl transition-all shadow-xs"
+                  title="Importar planilha Excel baixada do OneDrive para atualizar as OSs em lote"
+                >
+                  <Upload className="w-3.5 h-3.5 text-blue-600" />
+                  Importar Excel (.xlsx)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-500 hover:text-blue-700 text-xs font-semibold rounded-xl transition-all shadow-xs"
+                  title="Restaurar dados originais das planilhas do OneDrive"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  {resetFeedback ? 'Restaurado com Sucesso!' : 'Recarregar Planilhas Originais'}
+                </button>
+              </>
+            )}
+            {(activeTab !== 'retiradas' || canManageSpreadsheets) && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeTab === 'novos') {
+                    exportNovosEquipamentosToExcel(novosEquipamentos);
+                  } else if (activeTab === 'retiradas') {
+                    exportRetiradasToExcel(equipamentosAnteriores);
+                  } else {
+                    exportDistribuicaoToExcel(locaisDistribuicao);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-xs"
+                title="Baixar planilha Excel atualizada"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {activeTab === 'novos'
+                  ? 'Exportar Novos + OS (.xlsx)'
+                  : activeTab === 'retiradas'
+                  ? 'Exportar Retiradas + OS (.xlsx)'
+                  : 'Exportar Distribuição (.xlsx)'}
+              </button>
+            )}
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-200/60 transition-colors"
@@ -465,6 +495,30 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
           <div className="px-5 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-900 font-semibold text-xs flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>{importFeedback}</span>
+          </div>
+        )}
+
+        {confirmResetOpen && (
+          <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-2">
+            <span className="font-semibold">
+              Recarregar as planilhas originais? As OSs salvas na nuvem e no Histórico (com PDFs) serão preservadas.
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={confirmResetData}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg"
+              >
+                Confirmar recarga
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmResetOpen(false)}
+                className="px-3 py-1 bg-white border border-amber-300 text-amber-900 font-semibold rounded-lg"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
 

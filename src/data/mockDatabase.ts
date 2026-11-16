@@ -100,19 +100,37 @@ function sincronizarOS<T extends { patrimonio: string; numeroSerie: string }>(
   return { lista: salvos, alterou };
 }
 
-// Funções de gerenciamento com LocalStorage
+// Funções de gerenciamento com LocalStorage e Sincronização Inteligente
 export function getNovosEquipamentos(): NovoEquipamento[] {
+  const initial = buildInitialNovosEquipamentos();
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.NOVOS);
     if (raw) {
-      const { lista, alterou } = sincronizarOS(JSON.parse(raw) as NovoEquipamento[], buildInitialNovosEquipamentos(), 'ordemServico');
-      if (alterou) saveNovosEquipamentos(lista);
-      return lista;
+      const salvos = JSON.parse(raw) as NovoEquipamento[];
+      const mapaOficial = new Map(initial.map((n) => [String(n.patrimonio).trim(), n]));
+      let alterou = false;
+      salvos.forEach((s) => {
+        const oficial = mapaOficial.get(String(s.patrimonio).trim());
+        if (oficial) {
+          if (oficial.status === 'instalado' && s.status !== 'instalado') {
+            s.status = 'instalado';
+            s.dataInstalacao = oficial.dataInstalacao || s.dataInstalacao;
+            s.gatiInstalacao = oficial.gatiInstalacao || s.gatiInstalacao;
+            s.osId = oficial.osId || s.osId;
+            alterou = true;
+          }
+          if (oficial.ordemServico && !s.ordemServico) {
+            s.ordemServico = oficial.ordemServico;
+            alterou = true;
+          }
+        }
+      });
+      if (alterou) saveNovosEquipamentos(salvos);
+      return salvos;
     }
   } catch (e) {
     console.error('Erro ao ler novos equipamentos:', e);
   }
-  const initial = buildInitialNovosEquipamentos();
   saveNovosEquipamentos(initial);
   return initial;
 }
@@ -126,13 +144,40 @@ export function saveNovosEquipamentos(items: NovoEquipamento[]): void {
 }
 
 export function getLocaisDistribuicao(): LocalDistribuicao[] {
+  const initial = buildInitialLocaisDistribuicao();
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.LOCAIS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const salvos = JSON.parse(raw) as LocalDistribuicao[];
+      const mapaOficial = new Map(initial.map((l) => [l.id, l]));
+      let alterou = false;
+      salvos.forEach((s) => {
+        const oficial = mapaOficial.get(s.id);
+        if (oficial) {
+          if (oficial.status === 'instalado' && s.status !== 'instalado') {
+            s.status = 'instalado';
+            s.patrimonioInstalado = oficial.patrimonioInstalado || s.patrimonioInstalado;
+            s.serieInstalada = oficial.serieInstalada || s.serieInstalada;
+            s.dataInstalacao = oficial.dataInstalacao || s.dataInstalacao;
+            s.protegido = true;
+            alterou = true;
+          }
+          if (oficial.ordemServico && !s.ordemServico) {
+            s.ordemServico = oficial.ordemServico;
+            alterou = true;
+          }
+          if (oficial.ordemServicoRetirada && !s.ordemServicoRetirada) {
+            s.ordemServicoRetirada = oficial.ordemServicoRetirada;
+            alterou = true;
+          }
+        }
+      });
+      if (alterou) saveLocaisDistribuicao(salvos);
+      return salvos;
+    }
   } catch (e) {
     console.error('Erro ao ler locais:', e);
   }
-  const initial = buildInitialLocaisDistribuicao();
   saveLocaisDistribuicao(initial);
   return initial;
 }
@@ -146,21 +191,38 @@ export function saveLocaisDistribuicao(items: LocalDistribuicao[]): void {
 }
 
 export function getEquipamentosAnteriores(): EquipamentoAnterior[] {
+  const initial = buildInitialEquipamentosAnteriores();
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.RETIRADAS);
     if (raw) {
-      const { lista, alterou } = sincronizarOS(
-        JSON.parse(raw) as EquipamentoAnterior[],
-        buildInitialEquipamentosAnteriores(),
-        'ordemServicoRetirada'
-      );
-      if (alterou) saveEquipamentosAnteriores(lista);
-      return lista;
+      const salvos = JSON.parse(raw) as EquipamentoAnterior[];
+      const mapaOficial = new Map(initial.map((r) => [String(r.patrimonio).trim(), r]));
+      let alterou = false;
+      salvos.forEach((s) => {
+        const oficial = mapaOficial.get(String(s.patrimonio).trim());
+        if (oficial) {
+          if (oficial.status === 'retirado' && s.status !== 'retirado') {
+            s.status = 'retirado';
+            s.dataRetirada = oficial.dataRetirada || s.dataRetirada;
+            s.ordemServicoRetirada = oficial.ordemServicoRetirada || s.ordemServicoRetirada;
+            s.caboEnergiaRetirado = oficial.caboEnergiaRetirado ?? s.caboEnergiaRetirado;
+            s.bandejaSaidaRetirada = oficial.bandejaSaidaRetirada ?? s.bandejaSaidaRetirada;
+            s.avariasEncontradas = oficial.avariasEncontradas ?? s.avariasEncontradas;
+            s.protegido = true;
+            alterou = true;
+          }
+          if (oficial.ordemServicoRetirada && !s.ordemServicoRetirada) {
+            s.ordemServicoRetirada = oficial.ordemServicoRetirada;
+            alterou = true;
+          }
+        }
+      });
+      if (alterou) saveEquipamentosAnteriores(salvos);
+      return salvos;
     }
   } catch (e) {
     console.error('Erro ao ler retiradas:', e);
   }
-  const initial = buildInitialEquipamentosAnteriores();
   saveEquipamentosAnteriores(initial);
   return initial;
 }
@@ -250,6 +312,80 @@ export async function saveOrdemServico(os: OrdemServico): Promise<void> {
 }
 
 /**
+ * Anula uma Ordem de Serviço específica por ID de forma segura e estritamente individual.
+ * Nunca afeta outras OSs do mesmo local ou GATi.
+ */
+export async function anularOrdemPorId(
+  osId: string,
+  password: string
+): Promise<{ success: boolean; message: string; patrimonioLiberado?: string }> {
+  if (!(await verifyProtectionPassword(password))) {
+    return { success: false, message: 'Senha de proteção incorreta. Acesso não autorizado.' };
+  }
+
+  const todas = await loadOrdens();
+  const os = todas.find((o) => o.id === osId);
+  if (!os) {
+    return { success: false, message: 'Ordem de Serviço não encontrada.' };
+  }
+
+  // 1. Libera o equipamento novo na van
+  if (os.patrimonio) {
+    const novos = getNovosEquipamentos();
+    const nIndex = novos.findIndex((n) => n.patrimonio === os.patrimonio);
+    if (nIndex >= 0) {
+      novos[nIndex].status = 'disponivel';
+      delete novos[nIndex].dataInstalacao;
+      delete novos[nIndex].gatiInstalacao;
+      delete novos[nIndex].osId;
+      saveNovosEquipamentos(novos);
+    }
+  }
+
+  // 2. Libera o local de distribuição específico desta OS
+  const locais = getLocaisDistribuicao();
+  const locIndex = locais.findIndex(
+    (l) =>
+      (os.localId && l.id === os.localId) ||
+      (os.patrimonio && l.patrimonioInstalado === os.patrimonio) ||
+      (l.gatiInstalacao === os.gatiInstalacao && os.setor && l.setor === os.setor && l.status === 'instalado')
+  );
+  if (locIndex >= 0) {
+    locais[locIndex].status = 'pendente';
+    delete locais[locIndex].patrimonioInstalado;
+    delete locais[locIndex].serieInstalada;
+    delete locais[locIndex].dataInstalacao;
+    locais[locIndex].protegido = false;
+    saveLocaisDistribuicao(locais);
+  }
+
+  // 3. Libera o equipamento anterior da retirada (se houver)
+  if (os.substituiAnterior && os.patrimonioAnterior) {
+    const retiradas = getEquipamentosAnteriores();
+    const retIndex = retiradas.findIndex((r) => r.patrimonio === os.patrimonioAnterior);
+    if (retIndex >= 0) {
+      retiradas[retIndex].status = 'a_retirar';
+      delete retiradas[retIndex].dataRetirada;
+      delete retiradas[retIndex].contadorMono;
+      delete retiradas[retIndex].contadorColor;
+      delete retiradas[retIndex].contadorFinal;
+      retiradas[retIndex].protegido = false;
+      saveEquipamentosAnteriores(retiradas);
+    }
+  }
+
+  // 4. Marca APENAS esta OS como anulada no IndexedDB
+  const agora = new Date().toLocaleString('pt-BR');
+  await putOrdem({ ...os, anulada: true, dataAnulacao: agora });
+
+  return {
+    success: true,
+    message: `OS #${os.numeroOS || os.patrimonio} anulada com sucesso! O patrimônio #${os.patrimonio} foi liberado para nova instalação.`,
+    patrimonioLiberado: os.patrimonio,
+  };
+}
+
+/**
  * Anula a instalação de um local e libera o patrimônio de volta para ser instalado.
  * Requer confirmação pela senha de anulação.
  */
@@ -262,11 +398,10 @@ export async function anularInstalacao(
   }
 
   const locais = getLocaisDistribuicao();
-  const locIndex = locais.findIndex(l => l.id === localId);
+  const locIndex = locais.findIndex((l) => l.id === localId);
   if (locIndex < 0) {
     return { success: false, message: 'Local de distribuição não encontrado.' };
   }
-  const gatiInstalacao = locais[locIndex].gatiInstalacao;
 
   const local = locais[locIndex];
   const patInstalado = local.patrimonioInstalado;
@@ -274,7 +409,7 @@ export async function anularInstalacao(
   // 1. Libera o equipamento novo (volta para disponível na van)
   if (patInstalado) {
     const novos = getNovosEquipamentos();
-    const nIndex = novos.findIndex(n => n.patrimonio === patInstalado);
+    const nIndex = novos.findIndex((n) => n.patrimonio === patInstalado);
     if (nIndex >= 0) {
       novos[nIndex].status = 'disponivel';
       delete novos[nIndex].dataInstalacao;
@@ -292,26 +427,28 @@ export async function anularInstalacao(
   local.protegido = false;
   saveLocaisDistribuicao(locais);
 
-  // 3. Libera o equipamento anterior retirado nesta OS (identificado pela própria OS)
+  // 3. Libera o equipamento anterior retirado nesta OS estritamente
   const ordensDoLocal = (await loadOrdens()).filter(
-    o =>
+    (o) =>
       !o.anulada &&
-      (o.localId === localId || (!o.localId && o.gatiInstalacao === gatiInstalacao && o.patrimonio === patInstalado))
+      (o.localId === localId || (patInstalado && o.patrimonio === patInstalado))
   );
-  const patAnterior = ordensDoLocal.find(o => o.patrimonioAnterior)?.patrimonioAnterior;
-  const retiradas = getEquipamentosAnteriores();
-  const retIndex = patAnterior ? retiradas.findIndex(r => r.patrimonio === patAnterior) : -1;
-  if (retIndex >= 0) {
-    retiradas[retIndex].status = 'a_retirar';
-    delete retiradas[retIndex].dataRetirada;
-    delete retiradas[retIndex].contadorMono;
-    delete retiradas[retIndex].contadorColor;
-    delete retiradas[retIndex].contadorFinal;
-    retiradas[retIndex].protegido = false;
-    saveEquipamentosAnteriores(retiradas);
+  const patAnterior = ordensDoLocal.find((o) => o.patrimonioAnterior)?.patrimonioAnterior;
+  if (patAnterior) {
+    const retiradas = getEquipamentosAnteriores();
+    const retIndex = retiradas.findIndex((r) => r.patrimonio === patAnterior);
+    if (retIndex >= 0) {
+      retiradas[retIndex].status = 'a_retirar';
+      delete retiradas[retIndex].dataRetirada;
+      delete retiradas[retIndex].contadorMono;
+      delete retiradas[retIndex].contadorColor;
+      delete retiradas[retIndex].contadorFinal;
+      retiradas[retIndex].protegido = false;
+      saveEquipamentosAnteriores(retiradas);
+    }
   }
 
-  // 4. A OS NÃO é apagada: fica no Histórico marcada como "Anulada", com os PDFs.
+  // 4. Marca as OSs deste local como anuladas
   const agora = new Date().toLocaleString('pt-BR');
   for (const o of ordensDoLocal) {
     await putOrdem({ ...o, anulada: true, dataAnulacao: agora });
@@ -319,7 +456,7 @@ export async function anularInstalacao(
 
   return {
     success: true,
-    message: `Instalação do GATi ${gatiInstalacao} anulada com sucesso! O patrimônio #${patInstalado || ''} foi liberado na van para ser instalado novamente.`,
+    message: `Instalação anulada com sucesso! O patrimônio #${patInstalado || ''} foi liberado na van para ser instalado novamente.`,
     patrimonioLiberado: patInstalado,
   };
 }

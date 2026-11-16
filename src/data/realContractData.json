@@ -15,7 +15,7 @@
       "tipo": "Color",
       "status": "instalado",
       "ordemServico": "2026100543",
-      "dataInstalacao": "29/10/2026",
+      "dataInstalacao": "2026-10-29",
       "gatiInstalacao": "28559"
     },
     {
@@ -1127,8 +1127,10 @@
       "numeroSerie": "XC75065687",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110387"
+      "status": "instalado",
+      "ordemServico": "2026110387",
+      "dataInstalacao": "2026-11-10",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8383",
@@ -1199,16 +1201,20 @@
       "numeroSerie": "XC75066094",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110398"
+      "status": "instalado",
+      "ordemServico": "2026110398",
+      "dataInstalacao": "2026-10-29",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8392",
       "numeroSerie": "XC75065930",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110400"
+      "status": "instalado",
+      "ordemServico": "2026110400",
+      "dataInstalacao": "2026-11-10",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8393",
@@ -1263,8 +1269,10 @@
       "numeroSerie": "XC75065655",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110408"
+      "status": "instalado",
+      "ordemServico": "2026110408",
+      "dataInstalacao": "2026-11-10",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8400",
@@ -1279,24 +1287,30 @@
       "numeroSerie": "XC75065917",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110410"
+      "status": "instalado",
+      "ordemServico": "2026110410",
+      "dataInstalacao": "2026-11-10",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8402",
       "numeroSerie": "XC75065926",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110412"
+      "status": "instalado",
+      "ordemServico": "2026110412",
+      "dataInstalacao": "2026-10-29",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8403",
       "numeroSerie": "XC75065921",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110413"
+      "status": "instalado",
+      "ordemServico": "2026110413",
+      "dataInstalacao": "2026-10-29",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8404",
@@ -1335,8 +1349,10 @@
       "numeroSerie": "XC75065681",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110419"
+      "status": "instalado",
+      "ordemServico": "2026110419",
+      "dataInstalacao": "2026-10-29",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8409",
@@ -1399,8 +1415,10 @@
       "numeroSerie": "XC75065743",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110429"
+      "status": "instalado",
+      "ordemServico": "2026110429",
+      "dataInstalacao": "2026-11-10",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8417",
@@ -1423,24 +1441,30 @@
       "numeroSerie": "XC75066123",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110433"
+      "status": "instalado",
+      "ordemServico": "2026110433",
+      "dataInstalacao": "2026-11-10",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8420",
       "numeroSerie": "XC75065586",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110434"
+      "status": "instalado",
+      "ordemServico": "2026110434",
+      "dataInstalacao": "2026-11-10",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8421",
       "numeroSerie": "XC75065683",
       "modelo": "WFM5899",
       "tipo": "Mono",
-      "status": "disponivel",
-      "ordemServico": "2026110435"
+      "status": "instalado",
+      "ordemServico": "2026110435",
+      "dataInstalacao": "2026-11-10",
+      "gatiInstalacao": "28559"
     },
     {
       "patrimonio": "8422",
@@ -1848,8 +1872,8 @@
       "modelo": "WFM5899",
       "tipo": "Mono",
       "status": "instalado",
-      "ordemServico": "2026110499",
-      "dataInstalacao": "29/10/2026",
+      "ordemServico": "2026110205",
+      "dataInstalacao": "2026-10-29",
       "gatiInstalacao": "28559"
     },
     {
@@ -3989,7 +4013,7 @@
     {
       "id": "loc-125",
       "secretaria": "Administração",
-      "ordemServico": "",
+      "ordemServico": "2026110400",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "28773",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4001,7 +4025,11 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Thaisa Thamea do Nascimento Campos",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8392",
+      "dataInstalacao": "2026-11-10",
+      "serieInstalada": "XC75065930",
+      "ordemServicoRetirada": "2026110135"
     },
     {
       "id": "loc-126",
@@ -4019,8 +4047,10 @@
       "bairro": "OLARIA",
       "responsavelLocal": "Vitor Elias Alves Amorim",
       "status": "instalado",
-      "dataInstalacao": "29/10/2026",
-      "ordemServicoRetirada": "2026100562"
+      "dataInstalacao": "2026-10-29",
+      "ordemServicoRetirada": "2026100562",
+      "patrimonioInstalado": "8479",
+      "serieInstalada": "XBJZ043697"
     },
     {
       "id": "loc-127",
@@ -4042,7 +4072,7 @@
     {
       "id": "loc-128",
       "secretaria": "Administração",
-      "ordemServico": "",
+      "ordemServico": "2026110413",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "28773",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4054,7 +4084,11 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Ulisses Costa Alves",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8403",
+      "dataInstalacao": "2026-10-29",
+      "serieInstalada": "XC75065921",
+      "ordemServicoRetirada": "2026110143"
     },
     {
       "id": "loc-129",
@@ -4076,7 +4110,7 @@
     {
       "id": "loc-130",
       "secretaria": "Administração",
-      "ordemServico": "2026110499",
+      "ordemServico": "2026110205",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "28773",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4089,12 +4123,14 @@
       "bairro": "OLARIA",
       "responsavelLocal": "Carlos Matheus de Paula Azevedo",
       "status": "instalado",
-      "dataInstalacao": "29/10/2026"
+      "dataInstalacao": "2026-10-29",
+      "patrimonioInstalado": "8472",
+      "serieInstalada": "XC75066156"
     },
     {
       "id": "loc-131",
       "secretaria": "Administração",
-      "ordemServico": "",
+      "ordemServico": "2026110412",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "28773",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4106,7 +4142,11 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Ulisses Costa Alves",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8402",
+      "dataInstalacao": "2026-10-29",
+      "serieInstalada": "XC75065926",
+      "ordemServicoRetirada": "2026110133"
     },
     {
       "id": "loc-132",
@@ -4128,7 +4168,7 @@
     {
       "id": "loc-133",
       "secretaria": "Financas",
-      "ordemServico": "",
+      "ordemServico": "2026110429",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "40466",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4140,12 +4180,16 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "André Henrique de Oliveira Avila",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8416",
+      "serieInstalada": "XC75065743",
+      "dataInstalacao": "2026-11-10",
+      "ordemServicoRetirada": "2026110130"
     },
     {
       "id": "loc-134",
       "secretaria": "Financas",
-      "ordemServico": "",
+      "ordemServico": "2026110434",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "40466",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4157,12 +4201,16 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Ailton de Oliveira Pontes",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8420",
+      "serieInstalada": "XC75065586",
+      "dataInstalacao": "2026-11-10",
+      "ordemServicoRetirada": "2026110128"
     },
     {
       "id": "loc-135",
       "secretaria": "Financas",
-      "ordemServico": "",
+      "ordemServico": "2026110433",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "40466",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4174,12 +4222,16 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Roselia Aparecida Motta Ferreira",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8419",
+      "serieInstalada": "XC75066123",
+      "dataInstalacao": "2026-11-10",
+      "ordemServicoRetirada": "2026110129"
     },
     {
       "id": "loc-136",
       "secretaria": "Financas",
-      "ordemServico": "",
+      "ordemServico": "2026110419",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "40466",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4191,12 +4243,16 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Daniele Bianca Santos Rezende de Lacerda",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8408",
+      "serieInstalada": "XC75065681",
+      "dataInstalacao": "2026-10-29",
+      "ordemServicoRetirada": "2026110137"
     },
     {
       "id": "loc-137",
       "secretaria": "Financas",
-      "ordemServico": "",
+      "ordemServico": "2026110398",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "40466",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4208,7 +4264,11 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Daniele Bianca Santos Rezende de Lacerda",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8391",
+      "serieInstalada": "XC75066094",
+      "dataInstalacao": "2026-10-29",
+      "ordemServicoRetirada": "2026110227"
     },
     {
       "id": "loc-138",
@@ -4315,7 +4375,7 @@
     {
       "id": "loc-144",
       "secretaria": "Juridico",
-      "ordemServico": "",
+      "ordemServico": "2026110408",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "40468",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4327,12 +4387,16 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Rodolfo Barbosa Azevedo",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8399",
+      "serieInstalada": "XC75065655",
+      "dataInstalacao": "2026-11-10",
+      "ordemServicoRetirada": "2026110586"
     },
     {
       "id": "loc-145",
       "secretaria": "Juridico",
-      "ordemServico": "",
+      "ordemServico": "2026110435",
       "gatiInstalacao": "28559",
       "gatiFaturamento": "40468",
       "clienteInstalacao": "PAÇO MUNICIPAL",
@@ -4344,7 +4408,11 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "Rodolfo Barbosa Azevedo",
-      "status": "pendente"
+      "status": "instalado",
+      "patrimonioInstalado": "8421",
+      "serieInstalada": "XC75065683",
+      "dataInstalacao": "2026-11-10",
+      "ordemServicoRetirada": "2026110136"
     },
     {
       "id": "loc-146",
@@ -5877,7 +5945,7 @@
       "responsavelLocal": "",
       "status": "retirado",
       "ordemServicoRetirada": "2026100562",
-      "dataRetirada": "29/10/2026",
+      "dataRetirada": "2026-10-29",
       "caboEnergiaRetirado": true,
       "bandejaSaidaRetirada": true,
       "avariasEncontradas": false,
@@ -5936,8 +6004,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110135"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110135",
+      "dataRetirada": "2026-11-10"
     },
     {
       "secretaria": "Administração",
@@ -5987,8 +6056,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110143"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110143",
+      "dataRetirada": "2026-10-29"
     },
     {
       "secretaria": "Administração",
@@ -6038,8 +6108,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110133"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110133",
+      "dataRetirada": "2026-10-29"
     },
     {
       "secretaria": "Administração",
@@ -7143,8 +7214,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110130"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110130",
+      "dataRetirada": "2026-11-10"
     },
     {
       "secretaria": "Financas",
@@ -7160,8 +7232,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110142"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110142",
+      "dataRetirada": "2026-11-10"
     },
     {
       "secretaria": "Financas",
@@ -7177,8 +7250,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110137"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110137",
+      "dataRetirada": "2026-10-29"
     },
     {
       "secretaria": "Financas",
@@ -7194,8 +7268,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110139"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110139",
+      "dataRetirada": "2026-11-10"
     },
     {
       "secretaria": "Financas",
@@ -7211,8 +7286,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110129"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110129",
+      "dataRetirada": "2026-11-10"
     },
     {
       "secretaria": "Financas",
@@ -7245,8 +7321,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110227"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110227",
+      "dataRetirada": "2026-10-29"
     },
     {
       "secretaria": "Financas",
@@ -7262,8 +7339,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110128"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110128",
+      "dataRetirada": "2026-11-10"
     },
     {
       "secretaria": "Gabinete",
@@ -7381,8 +7459,9 @@
       "endereco": "RUA PRESIDENTE ROOSEVELT, 65",
       "bairro": "BAIRRO DA CRUZ",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110586"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110586",
+      "dataRetirada": "2026-11-10"
     },
     {
       "secretaria": "Juridico",
@@ -7432,8 +7511,9 @@
       "endereco": "AVENIDA CAPITÃO MESSIAS RIBEIRO, 625",
       "bairro": "OLARIA",
       "responsavelLocal": "",
-      "status": "a_retirar",
-      "ordemServicoRetirada": "2026110136"
+      "status": "retirado",
+      "ordemServicoRetirada": "2026110136",
+      "dataRetirada": "2026-11-10"
     },
     {
       "secretaria": "Juridico",

@@ -6,7 +6,7 @@ import {
   PlusCircle,
   User,
   ShieldCheck,
-  Lock,
+  LogOut,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -19,6 +19,12 @@ interface HeaderProps {
   instaladosNovos: number;
   tecnicoNome: string;
   onUpdateTecnico: (novoNome: string) => void;
+  isOnline?: boolean;
+  isSyncing?: boolean;
+  isAnonymous?: boolean;
+  userEmail?: string | null;
+  onSignInAdmin?: () => void;
+  onSignOut?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,6 +37,12 @@ export const Header: React.FC<HeaderProps> = ({
   instaladosNovos,
   tecnicoNome,
   onUpdateTecnico,
+  isOnline = true,
+  isSyncing = false,
+  isAnonymous = false,
+  userEmail,
+  onSignInAdmin,
+  onSignOut,
 }) => {
   const percent = Math.round((instaladosNovos / totalNovos) * 100) || 0;
 
@@ -51,6 +63,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="font-black text-lg tracking-tight text-white">MAQUIM</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30">
                   Lorena / SP
+                </span>
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'} ${isSyncing ? 'animate-ping' : 'animate-pulse'}`} />
+                  {isOnline ? 'Nuvem Ativa' : 'Modo Offline'}
                 </span>
               </div>
               <p className="text-[11px] text-blue-200/70 -mt-0.5 font-medium">
@@ -124,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Perfil Técnico */}
             <div className="pl-2 border-l border-blue-900/60 flex items-center gap-1.5">
-              <div className="w-8 h-8 rounded-full bg-blue-950 text-blue-200 flex items-center justify-center border border-blue-800">
+              <div className="w-8 h-8 rounded-full bg-blue-950 text-blue-200 flex items-center justify-center border border-blue-800" title={userEmail || 'Técnico conectado na nuvem'}>
                 <User className="w-4 h-4" />
               </div>
               <input
@@ -133,8 +149,27 @@ export const Header: React.FC<HeaderProps> = ({
                 onChange={(e) => onUpdateTecnico(e.target.value)}
                 placeholder="Técnico"
                 title="Clique para editar o nome do técnico"
-                className="w-24 sm:w-28 bg-transparent text-xs text-slate-200 font-medium focus:text-white focus:bg-blue-950 px-1 py-0.5 rounded-sm border-b border-transparent focus:border-blue-400 focus:outline-hidden"
+                className="w-20 sm:w-28 bg-transparent text-xs text-slate-200 font-medium focus:text-white focus:bg-blue-950 px-1 py-0.5 rounded-sm border-b border-transparent focus:border-blue-400 focus:outline-hidden"
               />
+              {isAnonymous && onSignInAdmin ? (
+                <button
+                  type="button"
+                  onClick={onSignInAdmin}
+                  className="px-2 py-1 text-[10px] font-bold bg-blue-900/70 hover:bg-blue-700 text-blue-200 hover:text-white border border-blue-700/60 rounded-lg transition-colors whitespace-nowrap"
+                  title="Acesso do Administrador (Entrar com Conta Google)"
+                >
+                  Admin
+                </button>
+              ) : onSignOut ? (
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                  title={`Sair do modo Google (${userEmail || 'conta'})`}
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

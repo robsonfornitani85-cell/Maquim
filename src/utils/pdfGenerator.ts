@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { OrdemServico } from '../types';
+import realData from '../data/realContractData.json';
 
 /**
  * Retorna o nome do arquivo da OS conforme especificação exata:
@@ -11,7 +12,16 @@ export function getOSFilename(
   tipo: 'instalacao' | 'retirada' = 'instalacao'
 ): string {
   if (tipo === 'retirada') {
-    const cleanOSRet = (os.numeroOSRetirada || '').trim();
+    let cleanOSRet = (os.numeroOSRetirada || '').trim();
+    // Fallback: se estiver em branco, busca na base de retiradas pelo patrimônio anterior
+    if (!cleanOSRet && os.patrimonioAnterior) {
+      const match = (realData.retiradas as any[]).find(
+        (r) => String(r.patrimonio).trim() === os.patrimonioAnterior?.trim()
+      );
+      if (match && match.ordemServicoRetirada) {
+        cleanOSRet = String(match.ordemServicoRetirada).trim();
+      }
+    }
     if (cleanOSRet) {
       const safeNum = cleanOSRet.replace(/[/\\?%*:|"<>]/g, '-');
       return `${safeNum}.pdf`;
@@ -25,7 +35,16 @@ export function getOSFilename(
   }
 
   // Instalação (padrão)
-  const cleanOS = (os.numeroOS || '').trim();
+  let cleanOS = (os.numeroOS || '').trim();
+  // Fallback: se estiver em branco, busca na base de novos equipamentos pelo patrimônio
+  if (!cleanOS && os.patrimonio) {
+    const match = (realData.novos as any[]).find(
+      (n) => String(n.patrimonio).trim() === os.patrimonio?.trim()
+    );
+    if (match && match.ordemServico) {
+      cleanOS = String(match.ordemServico).trim();
+    }
+  }
   if (cleanOS) {
     const safeNum = cleanOS.replace(/[/\\?%*:|"<>]/g, '-');
     return `${safeNum}.pdf`;

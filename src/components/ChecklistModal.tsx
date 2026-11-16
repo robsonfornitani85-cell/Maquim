@@ -126,7 +126,7 @@ export const ChecklistModal: React.FC<ChecklistModalProps> = ({ isOpen, onClose 
                 <li><strong>PDF 2 (OS Retirada):</strong> Começa pelo equipamento retirado (com contadores Mono/Color) e encerra com o novo.</li>
               </ul>
               <p className="text-[11px] text-indigo-900 font-semibold pt-0.5">
-                Ambos os arquivos são anexados e enviados com 1 clique para <strong>contratos2@maquim.com.br</strong>.
+                Ambos os arquivos são baixados automaticamente no celular e enviados para o banco em nuvem Firebase.
               </p>
             </div>
           </div>
@@ -146,18 +146,18 @@ export const ChecklistModal: React.FC<ChecklistModalProps> = ({ isOpen, onClose 
             </div>
           </div>
 
-          {/* Card 6: Envio Obrigatório por E-mail */}
-          <div className="bg-white p-4 rounded-2xl border border-rose-200 shadow-xs flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center shrink-0 mt-0.5">
-              <Mail className="w-4 h-4" />
+          {/* Card 6: Sincronização em Nuvem sem E-mail */}
+          <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 mt-0.5">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
             <div className="space-y-1">
               <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                <span>6. Envio por E-mail Obrigatório (com Anexos)</span>
-                <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded font-bold">Bloqueio Ativo</span>
+                <span>6. Gravação Automática na Nuvem (Sem Envio de E-mail)</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded font-bold">Fluxo Simplificado</span>
               </h4>
               <p className="text-slate-600 leading-relaxed">
-                O aplicativo bloqueia o botão de <strong>"Iniciar Próxima Instalação"</strong> até que o envio do e-mail com os PDFs para <strong>contratos2@maquim.com.br</strong> seja disparado ou confirmado. Isso assegura que 100% das instalações e retiradas cheguem em tempo real ao escritório da Maquim.
+                Ao tocar em <strong>"Finalizar OS e gerar PDFs"</strong>, o técnico não precisa mais enviar e-mail manualmente. A OS, assinatura, fotos e bloqueio de patrimônio vão direto para o banco Firebase e o próximo atendimento já fica liberado.
               </p>
             </div>
           </div>

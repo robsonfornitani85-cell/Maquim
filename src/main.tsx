@@ -1,8 +1,13 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { FirebaseProvider } from './firebase/FirebaseProvider.tsx';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <FirebaseProvider>
+    <App />
+  </FirebaseProvider>
+);
 
 // Modo offline: registra o service worker (somente no build de produção)
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {

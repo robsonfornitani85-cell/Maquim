@@ -21,6 +21,7 @@ export interface LocalDistribuicao {
   modeloPrevisto: string;
   tipoEquipamento: string;
   setor?: string;
+  localizacao?: string;
   endereco: string;
   bairro: string;
   responsavelLocal: string;
@@ -130,6 +131,7 @@ export interface OrdemServico {
 
   // OS reconstruída a partir dos PDFs gerados pelo app (importação no Histórico)
   restauradaDePDF?: boolean;
+  restauradaPDF?: boolean;
   pdfsOriginais?: { nome: string; blob: Blob }[]; // Sem internet: próxima instalação liberada, envio feito depois
   dataEnvioEmail?: string;
   emailDestinatario: string;
