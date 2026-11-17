@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "OrdemServico": {
+      "title": "OrdemServico",
+      "description": "Ordem de Serviço completa de instalação e retirada de equipamento Maquim (Lorena/SP).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "numeroOS": { "type": "string", "maxLength": 40 },
+        "numeroOSRetirada": { "type": "string", "maxLength": 40 },
+        "dataRegistro": { "type": "string", "maxLength": 50 },
+        "dataInstalacao": { "type": "string", "maxLength": 30 },
+        "tecnicoNome": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "localId": { "type": "string", "maxLength": 64 },
+        "gatiInstalacao": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "gatiFaturamento": { "type": "string", "maxLength": 40 },
+        "secretaria": { "type": "string", "maxLength": 160 },
+        "clienteInstalacao": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "endereco": { "type": "string", "maxLength": 240 },
+        "bairro": { "type": "string", "maxLength": 120 },
+        "setor": { "type": "string", "maxLength": 160 },
+        "patrimonio": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "numeroSerie": { "type": "string", "maxLength": 60 },
+        "modelo": { "type": "string", "maxLength": 60 },
+        "tipoConexao": { "type": "string", "enum": ["Via Rede", "Via WI-FI", "Via USB para IMPRESSÃO"] },
+        "enderecoIP": { "type": "string", "maxLength": 45 },
+        "scanSMB": { "type": "boolean" },
+        "abbyFineReader": { "type": "boolean" },
+        "conectadoWifiERS": { "type": "boolean" },
+        "justificativaWifiERS": { "type": "string", "maxLength": 500 },
+        "scanEpsonScan2": { "type": "boolean" },
+        "ocrComponente": { "type": "boolean" },
+        "conferenciaERS": { "type": "boolean" },
+        "justificativaERS": { "type": "string", "maxLength": 500 },
+        "substituiAnterior": { "type": "boolean" },
+        "patrimonioAnterior": { "type": "string", "maxLength": 40 },
+        "numeroSerieAnterior": { "type": "string", "maxLength": 60 },
+        "modeloAnterior": { "type": "string", "maxLength": 60 },
+        "tipoEquipamentoAnterior": { "type": "string", "enum": ["Mono", "Color"] },
+        "contadorMono": { "type": "string", "maxLength": 30 },
+        "contadorColor": { "type": "string", "maxLength": 30 },
+        "contadorPaginasFinal": { "type": "string", "maxLength": 30 },
+        "equipamentoRetirado": { "type": "boolean" },
+        "justificativaEquipRetirado": { "type": "string", "maxLength": 500 },
+        "caboEnergiaRetirado": { "type": "boolean" },
+        "justificativaCaboEnergia": { "type": "string", "maxLength": 500 },
+        "bandejaSaidaRetirada": { "type": "boolean" },
+        "justificativaBandejaSaida": { "type": "string", "maxLength": 500 },
+        "avariasEncontradas": { "type": "boolean" },
+        "descricaoAvarias": { "type": "string", "maxLength": 1000 },
+        "usuariosTreinados": { "type": "array" },
+        "responsavelNome": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "responsavelCPF": { "type": "string", "maxLength": 20 },
+        "observacoes": { "type": "string", "maxLength": 1000 },
+        "enviadoEmail": { "type": "boolean" },
+        "envioPendenteOffline": { "type": "boolean" },
+        "anulada": { "type": "boolean" },
+        "dataAnulacao": { "type": "string", "maxLength": 50 },
+        "restauradaDePDF": { "type": "boolean" },
+        "restauradaPDF": { "type": "boolean" },
+        "dataEnvioEmail": { "type": "string", "maxLength": 50 },
+        "emailDestinatario": { "type": "string", "maxLength": 120 },
+        "hasAttachments": { "type": "boolean" },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "tecnicoNome",
+        "gatiInstalacao",
+        "clienteInstalacao",
+        "patrimonio",
+        "tipoConexao",
+        "conferenciaERS",
+        "substituiAnterior",
+        "responsavelNome",
+        "enviadoEmail",
+        "emailDestinatario",
+        "createdByUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "OrdemAttachment": {
+      "title": "OrdemAttachment",
+      "description": "Anexo fotográfico ou assinatura digital vinculada a uma Ordem de Serviço.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["signature", "relatorio", "avaria"] },
+        "dataUrl": { "type": "string", "minLength": 1, "maxLength": 750000 },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "dataUrl", "createdByUid", "createdAt"]
+    },
+    "ContractSync": {
+      "title": "ContractSync",
+      "description": "Estado operacional compartilhado em tempo real entre técnicos (sem PII).",
+      "type": "object",
+      "properties": {
+        "installedNovos": { "type": "object" },
+        "installedLocais": { "type": "object" },
+        "retiredEquip": { "type": "object" },
+        "locks": { "type": "object" },
+        "activeOrdensSummary": { "type": "object" },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["installedNovos", "installedLocais", "retiredEquip", "locks", "activeOrdensSummary", "updatedByUid", "updatedAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Registro de administrador autorizado a visualizar e anular todas as Ordens de Serviço.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/ordens/{osId}": {
+      "schema": { "$ref": "#/entities/OrdemServico" },
+      "description": "Ordens de Serviço completas criadas pelos técnicos em campo."
+    },
+    "/ordens/{osId}/attachments/{attType}": {
+      "schema": { "$ref": "#/entities/OrdemAttachment" },
+      "description": "Assinatura digital e fotos de contador/avaria da Ordem de Serviço."
+    },
+    "/contract_sync/{contractId}": {
+      "schema": { "$ref": "#/entities/ContractSync" },
+      "description": "Estado compartilhado em tempo real de equipamentos instalados, locais atendidos, retiradas e travas simultâneas."
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Lista de UIDs com permissão de administrador."
+    }
+  }
+}

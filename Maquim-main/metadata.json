@@ -1,0 +1,10 @@
+{
+  "name": "Maquim Implantação e OS - Lorena",
+  "description": "Sistema de campo para registro de instalações de 234 impressoras, retirada de equipamentos do contrato anterior e geração de Ordem de Serviço em PDF para Maquim e Município de Lorena.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
