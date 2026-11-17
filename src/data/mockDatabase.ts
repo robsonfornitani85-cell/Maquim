@@ -143,37 +143,65 @@ export function saveNovosEquipamentos(items: NovoEquipamento[]): void {
   }
 }
 
+const normLocKey = (v: unknown): string =>
+  String(v ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+
+/**
+ * Mescla uma nova lista oficial de locais (mantendo a sequência oficial do mapa)
+ * preservando 100% dos registros já instalados ou com OS preenchida no aparelho.
+ */
+export function mesclarLocaisPreservandoInstalacoes(
+  oficiais: LocalDistribuicao[],
+  salvos: LocalDistribuicao[]
+): LocalDistribuicao[] {
+  const usados = new Set<string>();
+  const poolComDados = salvos.filter(
+    (s) => s.status === 'instalado' || Boolean(s.patrimonioInstalado) || Boolean(s.ordemServico) || Boolean(s.ordemServicoRetirada)
+  );
+
+  return oficiais.map((oficial) => {
+    const match =
+      poolComDados.find((s) => {
+        if (usados.has(s.id)) return false;
+        const mesmoGati = String(s.gatiInstalacao || '').trim() === String(oficial.gatiInstalacao || '').trim();
+        const mesmoCliente = normLocKey(s.clienteInstalacao) === normLocKey(oficial.clienteInstalacao);
+        const mesmoSetor = normLocKey(s.localizacao || s.setor) === normLocKey(oficial.localizacao || oficial.setor);
+        return mesmoGati && mesmoCliente && mesmoSetor;
+      }) ||
+      poolComDados.find((s) => !usados.has(s.id) && s.id === oficial.id && normLocKey(s.clienteInstalacao) === normLocKey(oficial.clienteInstalacao));
+
+    if (match) {
+      usados.add(match.id);
+      const jaInstalado = match.status === 'instalado' || oficial.status === 'instalado';
+      return {
+        ...oficial,
+        status: jaInstalado ? 'instalado' : 'pendente',
+        patrimonioInstalado: match.patrimonioInstalado || oficial.patrimonioInstalado,
+        serieInstalada: match.serieInstalada || oficial.serieInstalada,
+        dataInstalacao: match.dataInstalacao || oficial.dataInstalacao,
+        ordemServico: match.ordemServico || oficial.ordemServico || '',
+        ordemServicoRetirada: match.ordemServicoRetirada || oficial.ordemServicoRetirada || '',
+        protegido: Boolean(match.protegido || oficial.protegido || jaInstalado),
+      };
+    }
+    return oficial;
+  });
+}
+
 export function getLocaisDistribuicao(): LocalDistribuicao[] {
   const initial = buildInitialLocaisDistribuicao();
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.LOCAIS);
     if (raw) {
       const salvos = JSON.parse(raw) as LocalDistribuicao[];
-      const mapaOficial = new Map(initial.map((l) => [l.id, l]));
-      let alterou = false;
-      salvos.forEach((s) => {
-        const oficial = mapaOficial.get(s.id);
-        if (oficial) {
-          if (oficial.status === 'instalado' && s.status !== 'instalado') {
-            s.status = 'instalado';
-            s.patrimonioInstalado = oficial.patrimonioInstalado || s.patrimonioInstalado;
-            s.serieInstalada = oficial.serieInstalada || s.serieInstalada;
-            s.dataInstalacao = oficial.dataInstalacao || s.dataInstalacao;
-            s.protegido = true;
-            alterou = true;
-          }
-          if (oficial.ordemServico && !s.ordemServico) {
-            s.ordemServico = oficial.ordemServico;
-            alterou = true;
-          }
-          if (oficial.ordemServicoRetirada && !s.ordemServicoRetirada) {
-            s.ordemServicoRetirada = oficial.ordemServicoRetirada;
-            alterou = true;
-          }
-        }
-      });
-      if (alterou) saveLocaisDistribuicao(salvos);
-      return salvos;
+      const mesclados = mesclarLocaisPreservandoInstalacoes(initial, salvos);
+      saveLocaisDistribuicao(mesclados);
+      return mesclados;
     }
   } catch (e) {
     console.error('Erro ao ler locais:', e);

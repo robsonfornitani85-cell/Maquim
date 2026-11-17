@@ -18,7 +18,8 @@ export function exportDistribuicaoToExcel(locais: LocalDistribuicao[]): void {
     'Nº de Série Instalado': l.serieInstalada || '',
     'Modelo': l.modeloPrevisto,
     'Tipo': l.tipoEquipamento,
-    'Setor': l.setor || '', // Localização dentro do local
+    'Localização': l.localizacao || l.setor || '',
+    'Conectividade': l.conectividade || '',
     'Endereço Local Instalação': l.endereco,
     'Bairro': l.bairro,
     'Responsável do Local': l.responsavelLocal,
@@ -145,4 +146,257 @@ export async function parseUploadedExcel(file: File): Promise<any[]> {
   const firstSheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[firstSheetName];
   return XLSX.utils.sheet_to_json(worksheet);
+}
+
+
+export interface CsvLinhaDistribuicao {
+  ordemMapa: number;
+  secretaria: string;
+  ordemServico: string;
+  ordemServicoRetirada: string;
+  gatiInstalacao: string;
+  gatiFaturamento: string;
+  clienteInstalacao: string;
+  patrimonio: string;
+  numeroSerie: string;
+  modelo: string;
+  equipamento: string;
+  localizacao: string;
+  conectividade: string;
+  instalada: string;
+  endereco: string;
+  bairro: string;
+  responsavelLocal: string;
+  id?: string;
+}
+
+export interface CsvInconsistencia {
+  tipo: 'contagem' | 'patrimonio_inexistente' | 'patrimonio_duplicado' | 'conflito_instalado';
+  severidade: 'erro' | 'aviso';
+  linha?: number;
+  patrimonio?: string;
+  gati?: string;
+  mensagem: string;
+}
+
+export interface ResultadoValidacaoCSV {
+  fileName: string;
+  totalLinhasCSV: number;
+  totalLocaisBanco: number;
+  diferencaContagem: number;
+  totalPatrimoniosInformados: number;
+  instaladosPreservados: number;
+  inconsistencias: CsvInconsistencia[];
+  bloqueante: boolean;
+  linhas: CsvLinhaDistribuicao[];
+}
+
+const normTxt = (v: unknown): string =>
+  String(v ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+
+/**
+ * Lê CSV (UTF-8 ou Windows-1252) ou Excel (.xlsx/.xls), detectando o cabeçalho mesmo
+ * quando há linhas de resumo no topo, e mantendo a sequência exata do mapa.
+ */
+export async function parsePlanilhaDistribuicao(file: File): Promise<CsvLinhaDistribuicao[]> {
+  const isCsv = file.name.toLowerCase().endsWith('.csv');
+  let matrix: string[][] = [];
+
+  if (isCsv) {
+    const buffer = await file.arrayBuffer();
+    let text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+    if (text.includes('\uFFFD')) {
+      text = new TextDecoder('windows-1252').decode(buffer);
+    }
+    const wb = XLSX.read(text, { type: 'string', raw: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    matrix = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
+  } else {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    matrix = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' });
+  }
+
+  const headerIdx = matrix.findIndex((row) => {
+    const joined = row.map(normTxt).join('|');
+    return joined.includes('GATI INSTALACAO') || (joined.includes('SECRETARIA') && joined.includes('CLIENTE'));
+  });
+
+  if (headerIdx === -1) {
+    throw new Error('Cabeçalho não reconhecido. Certifique-se de que há as colunas Secretaria e GATi Instalação.');
+  }
+
+  const headers = matrix[headerIdx].map(normTxt);
+  const col = (nomes: string[]): number =>
+    headers.findIndex((h) => nomes.some((n) => h === n || h.includes(n)));
+
+  const idxId = col(['ID']);
+  const idxSec = col(['SECRETARIA']);
+  const idxOS = col(['N° OS INSTALACAO', 'NO OS INSTALACAO', 'ORDEM DE SERVICO', 'OS INSTALACAO']);
+  const idxOSRet = col(['N° OS RETIRADA', 'NO OS RETIRADA', 'OS RETIRADA']);
+  const idxGatiInst = col(['GATI INSTALACAO', 'GATI']);
+  const idxGatiFat = col(['GATI FATURAMENTO']);
+  const idxCliente = col(['CLIENTE INSTALACAO', 'CLIENTE']);
+  const idxPatr = col(['PATRIMONIO INSTALADO', 'PATRIMONIO']);
+  const idxSerie = col(['N° DE SERIE', 'NO DE SERIE', 'NUMERO DE SERIE', 'SERIE']);
+  const idxModelo = col(['MODELO']);
+  const idxEquip = col(['EQUIPAMENTO', 'TIPO']);
+  const idxLoc = col(['LOCALIZACAO', 'SETOR']);
+  const idxConect = col(['CONECTIVIDADE']);
+  const idxInst = col(['INSTALADA?', 'STATUS']);
+  const idxEnd = col(['ENDERECO LOCAL INSTALACAO', 'ENDERECO']);
+  const idxBairro = col(['BAIRRO']);
+  const idxResp = col(['RESPONSAVEL DO LOCAL', 'RESPONSAVEL']);
+
+  const linhas: CsvLinhaDistribuicao[] = [];
+  let seq = 0;
+
+  for (let i = headerIdx + 1; i < matrix.length; i++) {
+    const r = matrix[i];
+    const get = (idx: number) => (idx >= 0 && idx < r.length ? String(r[idx] ?? '').trim() : '');
+    const sec = get(idxSec);
+    const gatiInst = get(idxGatiInst);
+    const cliente = get(idxCliente);
+    if (!sec && !gatiInst && !cliente) continue;
+
+    seq += 1;
+    linhas.push({
+      id: get(idxId) || undefined,
+      ordemMapa: seq,
+      secretaria: sec,
+      ordemServico: get(idxOS),
+      ordemServicoRetirada: get(idxOSRet),
+      gatiInstalacao: gatiInst,
+      gatiFaturamento: get(idxGatiFat),
+      clienteInstalacao: cliente,
+      patrimonio: get(idxPatr),
+      numeroSerie: get(idxSerie),
+      modelo: get(idxModelo),
+      equipamento: get(idxEquip),
+      localizacao: get(idxLoc),
+      conectividade: get(idxConect),
+      instalada: get(idxInst),
+      endereco: get(idxEnd),
+      bairro: get(idxBairro),
+      responsavelLocal: get(idxResp),
+    });
+  }
+
+  return linhas;
+}
+
+/**
+ * Valida contagem total de locais e identificadores de patrimônio do CSV contra o banco atual,
+ * destacando inconsistências antes da aplicação das alterações.
+ */
+export function validarCSVContraBanco(
+  fileName: string,
+  linhas: CsvLinhaDistribuicao[],
+  locaisAtuais: LocalDistribuicao[],
+  novosAtuais: NovoEquipamento[]
+): ResultadoValidacaoCSV {
+  const inconsistencias: CsvInconsistencia[] = [];
+  const totalLinhasCSV = linhas.length;
+  const totalLocaisBanco = locaisAtuais.length;
+  const diferencaContagem = totalLinhasCSV - totalLocaisBanco;
+
+  if (diferencaContagem !== 0) {
+    inconsistencias.push({
+      tipo: 'contagem',
+      severidade: 'aviso',
+      mensagem: `Contagem divergente: o arquivo possui ${totalLinhasCSV} locais e o banco atual possui ${totalLocaisBanco} locais (diferença: ${diferencaContagem > 0 ? `+${diferencaContagem}` : diferencaContagem}).`,
+    });
+  }
+
+  const mapaPatrimoniosOficiais = new Map(
+    novosAtuais.map((n) => [String(n.patrimonio).trim(), n])
+  );
+  const patrimoniosNoCSV = new Map<string, number>();
+  let totalPatrimoniosInformados = 0;
+  let instaladosPreservados = 0;
+
+  linhas.forEach((linha) => {
+    const patr = linha.patrimonio.trim();
+    if (patr) {
+      totalPatrimoniosInformados += 1;
+      const linhaAnterior = patrimoniosNoCSV.get(patr);
+      if (linhaAnterior !== undefined) {
+        inconsistencias.push({
+          tipo: 'patrimonio_duplicado',
+          severidade: 'erro',
+          linha: linha.ordemMapa,
+          patrimonio: patr,
+          gati: linha.gatiInstalacao,
+          mensagem: `Linha ${linha.ordemMapa} (GATi ${linha.gatiInstalacao}): Patrimônio ${patr} duplicado na planilha (já aparece na linha ${linhaAnterior}).`,
+        });
+      } else {
+        patrimoniosNoCSV.set(patr, linha.ordemMapa);
+      }
+
+      const eqBanco = mapaPatrimoniosOficiais.get(patr);
+      if (!eqBanco) {
+        inconsistencias.push({
+          tipo: 'patrimonio_inexistente',
+          severidade: 'erro',
+          linha: linha.ordemMapa,
+          patrimonio: patr,
+          gati: linha.gatiInstalacao,
+          mensagem: `Linha ${linha.ordemMapa} (GATi ${linha.gatiInstalacao}): Patrimônio ${patr} não encontrado no cadastro oficial de equipamentos.`,
+        });
+      } else if (
+        eqBanco.status === 'instalado' &&
+        eqBanco.gatiInstalacao &&
+        eqBanco.gatiInstalacao !== linha.gatiInstalacao
+      ) {
+        inconsistencias.push({
+          tipo: 'conflito_instalado',
+          severidade: 'aviso',
+          linha: linha.ordemMapa,
+          patrimonio: patr,
+          gati: linha.gatiInstalacao,
+          mensagem: `Linha ${linha.ordemMapa}: Patrimônio ${patr} já consta instalado no GATi ${eqBanco.gatiInstalacao} no banco atual (planilha aponta GATi ${linha.gatiInstalacao}).`,
+        });
+      }
+    }
+
+    const jaInstalado = locaisAtuais.find(
+      (l) =>
+        l.status === 'instalado' &&
+        l.gatiInstalacao === linha.gatiInstalacao &&
+        normTxt(l.clienteInstalacao) === normTxt(linha.clienteInstalacao) &&
+        (!linha.localizacao || normTxt(l.localizacao || l.setor) === normTxt(linha.localizacao))
+    );
+
+    if (jaInstalado) {
+      instaladosPreservados += 1;
+      if (patr && jaInstalado.patrimonioInstalado && patr !== jaInstalado.patrimonioInstalado) {
+        inconsistencias.push({
+          tipo: 'conflito_instalado',
+          severidade: 'aviso',
+          linha: linha.ordemMapa,
+          patrimonio: patr,
+          gati: linha.gatiInstalacao,
+          mensagem: `Linha ${linha.ordemMapa} (${linha.clienteInstalacao}): Já instalado no banco com patrimônio ${jaInstalado.patrimonioInstalado}; o registro existente será preservado.`,
+        });
+      }
+    }
+  });
+
+  return {
+    fileName,
+    totalLinhasCSV,
+    totalLocaisBanco,
+    diferencaContagem,
+    totalPatrimoniosInformados,
+    instaladosPreservados,
+    inconsistencias,
+    bloqueante: inconsistencias.some((i) => i.severidade === 'erro'),
+    linhas,
+  };
 }

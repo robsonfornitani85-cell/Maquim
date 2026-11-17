@@ -17,8 +17,8 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { NovoEquipamento, LocalDistribuicao, EquipamentoAnterior } from '../types';
-import { exportDistribuicaoToExcel, exportNovosEquipamentosToExcel, exportRetiradasToExcel, parseUploadedExcel } from '../utils/excelManager';
-import { anularInstalacao } from '../data/mockDatabase';
+import { exportDistribuicaoToExcel, exportNovosEquipamentosToExcel, exportRetiradasToExcel, parsePlanilhaDistribuicao, validarCSVContraBanco, ResultadoValidacaoCSV } from '../utils/excelManager';
+import { anularInstalacao, mesclarLocaisPreservandoInstalacoes, saveLocaisDistribuicao } from '../data/mockDatabase';
 import { DataTable, DataColumn } from './DataTable';
 import { normalizeSearch } from '../utils/validation';
 
@@ -60,6 +60,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
   const [resetFeedback, setResetFeedback] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [importFeedback, setImportFeedback] = useState('');
+  const [validacaoCSV, setValidacaoCSV] = useState<ResultadoValidacaoCSV | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estados para modal de desbloqueio / anulação por senha
@@ -73,34 +74,51 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const data = await parseUploadedExcel(file);
-      let count = 0;
-      data.forEach((row: any) => {
-        const gati = String(row['GATi Instalação'] || row['GATi'] || row['Gati'] || '').trim();
-        const osInst = String(row['Nº OS Instalação'] || row['Nº Ordem de Serviço'] || row['Nº OS'] || row['OS'] || '').trim();
-        const osRet = String(row['Nº OS Retirada'] || row['OS Retirada'] || row['OS Ret'] || '').trim();
-        const id = String(row['ID'] || row['Id'] || '').trim();
-        const setorRow = String(row['Localização'] || row['Setor'] || '').trim().toUpperCase();
-        if (gati || id) {
-          const alvos = locaisDistribuicao.filter((l) =>
-            id ? l.id === id : l.gatiInstalacao === gati && (!setorRow || (l.setor || '').trim().toUpperCase() === setorRow)
-          );
-          alvos.forEach((l) => {
-            if (osInst && onUpdateOS) onUpdateOS(l.id, osInst);
-            if (osRet && onUpdateOSRetirada) onUpdateOSRetirada(l.id, osRet);
-          });
-          if (alvos.length) count++;
-        }
-      });
-      setImportFeedback(`✓ ${count} locais atualizados com sucesso a partir da planilha!`);
-      onRefreshData?.();
-      setTimeout(() => setImportFeedback(''), 4000);
-    } catch (err) {
-      setImportFeedback('Erro ao processar planilha Excel.');
-      setTimeout(() => setImportFeedback(''), 4000);
+      const linhas = await parsePlanilhaDistribuicao(file);
+      const resultado = validarCSVContraBanco(file.name, linhas, locaisDistribuicao, novosEquipamentos);
+      setValidacaoCSV(resultado);
+    } catch (err: any) {
+      setImportFeedback(err?.message || 'Erro ao processar planilha CSV/Excel.');
+      setTimeout(() => setImportFeedback(''), 5000);
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleConfirmarImportacaoValidada = () => {
+    if (!validacaoCSV || validacaoCSV.bloqueante) return;
+    const novosOficiais: LocalDistribuicao[] = validacaoCSV.linhas.map((linha) => {
+      const instaladoNoCSV = linha.instalada.trim().toUpperCase() === 'SIM' || Boolean(linha.patrimonio);
+      return {
+        id: linha.id || `loc-${linha.ordemMapa}`,
+        ordemMapa: linha.ordemMapa,
+        secretaria: linha.secretaria,
+        ordemServico: linha.ordemServico,
+        ordemServicoRetirada: linha.ordemServicoRetirada,
+        gatiInstalacao: linha.gatiInstalacao,
+        gatiFaturamento: linha.gatiFaturamento,
+        clienteInstalacao: linha.clienteInstalacao,
+        modeloPrevisto: linha.modelo,
+        tipoEquipamento: linha.equipamento,
+        setor: linha.localizacao,
+        localizacao: linha.localizacao,
+        conectividade: linha.conectividade,
+        endereco: linha.endereco,
+        bairro: linha.bairro,
+        responsavelLocal: linha.responsavelLocal,
+        status: instaladoNoCSV ? 'instalado' : 'pendente',
+        patrimonioInstalado: linha.patrimonio || undefined,
+        serieInstalada: linha.numeroSerie || undefined,
+        protegido: instaladoNoCSV,
+      };
+    });
+
+    const mesclados = mesclarLocaisPreservandoInstalacoes(novosOficiais, locaisDistribuicao);
+    saveLocaisDistribuicao(mesclados);
+    setValidacaoCSV(null);
+    setImportFeedback(`✓ ${mesclados.length} locais atualizados na sequência do mapa (${validacaoCSV.instaladosPreservados} instalações preservadas)!`);
+    onRefreshData?.();
+    setTimeout(() => setImportFeedback(''), 5000);
   };
 
   if (!isOpen) return null;
@@ -446,7 +464,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
                   title="Importar planilha Excel baixada do OneDrive para atualizar as OSs em lote"
                 >
                   <Upload className="w-3.5 h-3.5 text-blue-600" />
-                  Importar Excel (.xlsx)
+                  Importar CSV / Excel
                 </button>
                 <button
                   type="button"
@@ -495,6 +513,72 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
           <div className="px-5 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-900 font-semibold text-xs flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>{importFeedback}</span>
+          </div>
+        )}
+
+        {validacaoCSV && (
+          <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 space-y-3 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className={`w-4 h-4 ${validacaoCSV.bloqueante ? 'text-red-600' : 'text-amber-600'}`} />
+                <span className="font-bold text-slate-900">
+                  Validação Pré-Aplicação: {validacaoCSV.fileName}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                <span className="px-2 py-0.5 rounded bg-white border border-slate-200">
+                  Locais CSV: {validacaoCSV.totalLinhasCSV} / Banco: {validacaoCSV.totalLocaisBanco}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-white border border-slate-200">
+                  Patrimônios no CSV: {validacaoCSV.totalPatrimoniosInformados}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900">
+                  Instalados preservados: {validacaoCSV.instaladosPreservados}
+                </span>
+              </div>
+            </div>
+
+            {validacaoCSV.inconsistencias.length > 0 ? (
+              <div className="max-h-36 overflow-y-auto space-y-1 bg-white p-2.5 rounded-xl border border-slate-200">
+                {validacaoCSV.inconsistencias.map((inc, idx) => (
+                  <p
+                    key={idx}
+                    className={`font-medium ${inc.severidade === 'erro' ? 'text-red-700' : 'text-amber-800'}`}
+                  >
+                    {inc.severidade === 'erro' ? '⛔ ERRO: ' : '⚠️ AVISO: '}
+                    {inc.mensagem}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="text-emerald-700 font-semibold">
+                ✓ Nenhuma inconsistência encontrada na contagem de locais ou nos patrimônios.
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setValidacaoCSV(null)}
+                className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 font-semibold rounded-lg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={validacaoCSV.bloqueante}
+                onClick={handleConfirmarImportacaoValidada}
+                className={`px-4 py-1.5 font-bold rounded-lg text-white ${
+                  validacaoCSV.bloqueante
+                    ? 'bg-slate-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {validacaoCSV.bloqueante
+                  ? 'Corrija os erros antes de aplicar'
+                  : 'Confirmar e Aplicar (Preservando Instalados)'}
+              </button>
+            </div>
           </div>
         )}
 

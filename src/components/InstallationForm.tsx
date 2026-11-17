@@ -2496,14 +2496,17 @@ export const InstallationForm: React.FC<InstallationFormProps> = ({
                               <button
                                 key={r.patrimonio}
                                 type="button"
-                                onClick={() => handleSelectPatrimonioAnterior(r.patrimonio)}
+                                disabled={retirado && !ativo}
+                                onClick={() => {
+                                  if (!retirado || ativo) handleSelectPatrimonioAnterior(r.patrimonio);
+                                }}
                                 className={`px-2.5 py-1.5 rounded-lg border text-left text-xs ${
                                   ativo
                                     ? 'bg-amber-600 border-amber-600 text-white'
                                     : sugerido
                                     ? 'bg-white border-amber-500 ring-2 ring-amber-400/40 text-amber-950'
                                     : 'bg-white border-amber-200 text-slate-700'
-                                } ${retirado && !ativo ? 'opacity-50' : ''}`}
+                                } ${retirado && !ativo ? 'opacity-50 cursor-not-allowed' : ''}`}
                               >
                                 <span className="font-mono font-bold">#{r.patrimonio}</span>{' '}
                                 <span className="font-semibold uppercase">{r.localizacao || '—'}</span>

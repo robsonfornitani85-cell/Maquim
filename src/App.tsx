@@ -126,13 +126,22 @@ export default function App() {
       );
       setOrdens(mergedOrdens);
 
-      // 2. Mapeia OSs ativas e anuladas
+      // 2. Mapeia OSs ativas e anuladas (com normalização para reconciliação única)
+      const normKey = (v?: string) =>
+        String(v || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toUpperCase();
+
       const ativosNovosMap = new Map<string, OrdemServico>();
       const ativosLocaisMap = new Map<string, OrdemServico>();
       const ativosRetMap = new Map<string, OrdemServico>();
       const anuladosNovos = new Set<string>();
       const anuladosLocais = new Set<string>();
       const anuladosRet = new Set<string>();
+      const osAtivasList: OrdemServico[] = [];
 
       for (const o of mergedOrdens) {
         const pat = String(o.patrimonio || '').trim();
@@ -142,8 +151,9 @@ export default function App() {
           if (o.localId) anuladosLocais.add(o.localId);
           if (patAnt) anuladosRet.add(patAnt);
         } else {
-          if (pat) ativosNovosMap.set(pat, o);
-          if (o.localId) ativosLocaisMap.set(o.localId, o);
+          osAtivasList.push(o);
+          if (pat && !ativosNovosMap.has(pat)) ativosNovosMap.set(pat, o);
+          if (o.localId && !ativosLocaisMap.has(o.localId)) ativosLocaisMap.set(o.localId, o);
           if (o.substituiAnterior && patAnt) ativosRetMap.set(patAnt, o);
         }
       }
@@ -160,31 +170,147 @@ export default function App() {
         }
       }
 
-      // 3. Sincroniza Novos Equipamentos
+      // 3. Reconcilia Locais de Distribuição (1 patrimônio por local, sem duplicidade e sem OS órfã)
+      const rawLocais = getLocaisDistribuicao();
+      const patrimoniosJaAlocadosEmLocais = new Set<string>();
+      const osJaVinculadasALocais = new Set<string>();
+
+      // Passo 3A: Aplica vínculos diretos (cloudLoc, localId exato ou registro já instalado) evitando duplicidade de patrimônio
+      const prelimLocais = rawLocais.map((l) => {
+        const locKey = sanitizeSyncKey(l.id);
+        const cloudLoc = sync?.installedLocais?.[locKey];
+        const localAtivo = ativosLocaisMap.get(l.id);
+
+        if (anuladosLocais.has(l.id) && !cloudLoc && !localAtivo && l.status === 'instalado') {
+          const next = { ...l, status: 'pendente' as const, protegido: false };
+          delete next.patrimonioInstalado;
+          delete next.serieInstalada;
+          delete next.dataInstalacao;
+          return next;
+        }
+
+        const candPat = String(
+          cloudLoc?.patrimonioInstalado || localAtivo?.patrimonio || l.patrimonioInstalado || ''
+        ).trim();
+
+        if (candPat && patrimoniosJaAlocadosEmLocais.has(candPat)) {
+          // Evita que o mesmo patrimônio (ex: 8430) fique duplicado em dois locais diferentes
+          const next = { ...l, status: 'pendente' as const, protegido: false };
+          delete next.patrimonioInstalado;
+          delete next.serieInstalada;
+          delete next.dataInstalacao;
+          return next;
+        }
+
+        if (cloudLoc && candPat) {
+          patrimoniosJaAlocadosEmLocais.add(candPat);
+          if (localAtivo) osJaVinculadasALocais.add(localAtivo.id);
+          return {
+            ...l,
+            status: 'instalado' as const,
+            patrimonioInstalado: candPat,
+            serieInstalada: cloudLoc.serieInstalada || l.serieInstalada,
+            dataInstalacao: cloudLoc.dataInstalacao || l.dataInstalacao,
+            ordemServico: cloudLoc.ordemServico || l.ordemServico,
+            ordemServicoRetirada: cloudLoc.ordemServicoRetirada || l.ordemServicoRetirada,
+            protegido: true,
+          };
+        }
+        if (localAtivo && candPat) {
+          patrimoniosJaAlocadosEmLocais.add(candPat);
+          osJaVinculadasALocais.add(localAtivo.id);
+          return {
+            ...l,
+            status: 'instalado' as const,
+            patrimonioInstalado: candPat,
+            serieInstalada: localAtivo.numeroSerie || l.serieInstalada,
+            dataInstalacao: localAtivo.dataInstalacao || l.dataInstalacao,
+            ordemServico: localAtivo.numeroOS || l.ordemServico,
+            ordemServicoRetirada: localAtivo.numeroOSRetirada || l.ordemServicoRetirada,
+            protegido: true,
+          };
+        }
+        if (l.status === 'instalado' && candPat) {
+          patrimoniosJaAlocadosEmLocais.add(candPat);
+          const osMatch = ativosNovosMap.get(candPat);
+          if (osMatch) osJaVinculadasALocais.add(osMatch.id);
+          return {
+            ...l,
+            ordemServico: l.ordemServico || osMatch?.numeroOS || '',
+            ordemServicoRetirada: l.ordemServicoRetirada || osMatch?.numeroOSRetirada || '',
+            protegido: true,
+          };
+        }
+        return l;
+      });
+
+      // Passo 3B: Vincula OSs ativas que ficaram sem localId (ex: restauradas de PDF ou IDs antigos) ao próximo local livre correspondente
+      const syncedLocais = [...prelimLocais];
+      for (const o of osAtivasList) {
+        const pat = String(o.patrimonio || '').trim();
+        if (!pat || osJaVinculadasALocais.has(o.id) || patrimoniosJaAlocadosEmLocais.has(pat)) continue;
+
+        const gatiOS = normKey(o.gatiInstalacao);
+        const cliOS = normKey(o.clienteInstalacao);
+        const setorOS = normKey(o.setor);
+
+        let targetIdx = syncedLocais.findIndex(
+          (l) =>
+            l.status !== 'instalado' &&
+            normKey(l.gatiInstalacao) === gatiOS &&
+            normKey(l.clienteInstalacao) === cliOS &&
+            (!setorOS || normKey(l.localizacao || l.setor) === setorOS)
+        );
+        if (targetIdx === -1) {
+          targetIdx = syncedLocais.findIndex(
+            (l) => l.status !== 'instalado' && normKey(l.gatiInstalacao) === gatiOS
+          );
+        }
+        if (targetIdx !== -1) {
+          patrimoniosJaAlocadosEmLocais.add(pat);
+          osJaVinculadasALocais.add(o.id);
+          const l = syncedLocais[targetIdx];
+          syncedLocais[targetIdx] = {
+            ...l,
+            status: 'instalado',
+            patrimonioInstalado: pat,
+            serieInstalada: o.numeroSerie || l.serieInstalada,
+            dataInstalacao: o.dataInstalacao || l.dataInstalacao,
+            ordemServico: o.numeroOS || l.ordemServico,
+            ordemServicoRetirada: o.numeroOSRetirada || l.ordemServicoRetirada,
+            protegido: true,
+          };
+        }
+      }
+
+      setLocaisDistribuicao(syncedLocais);
+      saveLocaisDistribuicao(syncedLocais);
+
+      // 4. Sincroniza Novos Equipamentos como fonte única consistente com OSs Ativas + Locais Instalados
+      const locaisPorPatrimonio = new Map<string, LocalDistribuicao>();
+      for (const l of syncedLocais) {
+        const p = String(l.patrimonioInstalado || '').trim();
+        if (l.status === 'instalado' && p && !locaisPorPatrimonio.has(p)) {
+          locaisPorPatrimonio.set(p, l);
+        }
+      }
+
       const rawNovos = getNovosEquipamentos();
       const syncedNovos = rawNovos.map((n) => {
         const pat = String(n.patrimonio).trim();
         const patKey = sanitizeSyncKey(pat);
         const cloudNovo = sync?.installedNovos?.[patKey];
         const localAtivo = ativosNovosMap.get(pat);
+        const locVinculado = locaisPorPatrimonio.get(pat);
 
-        if (cloudNovo) {
+        if (localAtivo || locVinculado || cloudNovo) {
           return {
             ...n,
             status: 'instalado' as const,
-            dataInstalacao: cloudNovo.dataInstalacao || n.dataInstalacao,
-            gatiInstalacao: cloudNovo.gatiInstalacao || n.gatiInstalacao,
-            osId: cloudNovo.numeroOS || n.osId,
-            ordemServico: cloudNovo.numeroOS || n.ordemServico,
-          };
-        }
-        if (localAtivo) {
-          return {
-            ...n,
-            status: 'instalado' as const,
-            dataInstalacao: localAtivo.dataInstalacao || n.dataInstalacao,
-            gatiInstalacao: localAtivo.gatiInstalacao || n.gatiInstalacao,
-            osId: localAtivo.numeroOS || n.osId,
+            dataInstalacao: localAtivo?.dataInstalacao || locVinculado?.dataInstalacao || cloudNovo?.dataInstalacao || n.dataInstalacao,
+            gatiInstalacao: localAtivo?.gatiInstalacao || locVinculado?.gatiInstalacao || cloudNovo?.gatiInstalacao || n.gatiInstalacao,
+            osId: localAtivo?.numeroOS || locVinculado?.ordemServico || cloudNovo?.numeroOS || n.osId,
+            ordemServico: localAtivo?.numeroOS || locVinculado?.ordemServico || cloudNovo?.numeroOS || n.ordemServico,
           };
         }
         if (anuladosNovos.has(pat) && n.status === 'instalado') {
@@ -198,49 +324,6 @@ export default function App() {
       });
       setNovosEquipamentos(syncedNovos);
       saveNovosEquipamentos(syncedNovos);
-
-      // 4. Sincroniza Locais de Distribuição
-      const rawLocais = getLocaisDistribuicao();
-      const syncedLocais = rawLocais.map((l) => {
-        const locKey = sanitizeSyncKey(l.id);
-        const cloudLoc = sync?.installedLocais?.[locKey];
-        const localAtivo = ativosLocaisMap.get(l.id);
-
-        if (cloudLoc) {
-          return {
-            ...l,
-            status: 'instalado' as const,
-            patrimonioInstalado: cloudLoc.patrimonioInstalado || l.patrimonioInstalado,
-            serieInstalada: cloudLoc.serieInstalada || l.serieInstalada,
-            dataInstalacao: cloudLoc.dataInstalacao || l.dataInstalacao,
-            ordemServico: cloudLoc.ordemServico || l.ordemServico,
-            ordemServicoRetirada: cloudLoc.ordemServicoRetirada || l.ordemServicoRetirada,
-            protegido: true,
-          };
-        }
-        if (localAtivo) {
-          return {
-            ...l,
-            status: 'instalado' as const,
-            patrimonioInstalado: localAtivo.patrimonio || l.patrimonioInstalado,
-            serieInstalada: localAtivo.numeroSerie || l.serieInstalada,
-            dataInstalacao: localAtivo.dataInstalacao || l.dataInstalacao,
-            ordemServico: localAtivo.numeroOS || l.ordemServico,
-            ordemServicoRetirada: localAtivo.numeroOSRetirada || l.ordemServicoRetirada,
-            protegido: true,
-          };
-        }
-        if (anuladosLocais.has(l.id) && l.status === 'instalado') {
-          const next = { ...l, status: 'pendente' as const, protegido: false };
-          delete next.patrimonioInstalado;
-          delete next.serieInstalada;
-          delete next.dataInstalacao;
-          return next;
-        }
-        return l;
-      });
-      setLocaisDistribuicao(syncedLocais);
-      saveLocaisDistribuicao(syncedLocais);
 
       // 5. Sincroniza Equipamentos Anteriores (Retiradas)
       const rawRetiradas = getEquipamentosAnteriores();

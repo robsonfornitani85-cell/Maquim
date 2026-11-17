@@ -22,6 +22,8 @@ export interface LocalDistribuicao {
   tipoEquipamento: string;
   setor?: string;
   localizacao?: string;
+  conectividade?: string;
+  ordemMapa?: number;
   endereco: string;
   bairro: string;
   responsavelLocal: string;
