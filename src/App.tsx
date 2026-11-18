@@ -189,36 +189,30 @@ export default function App() {
           return next;
         }
 
-        // Só aceita cloudLoc pelo ID se o GATi do Firebase bater com o GATi do local atual (evita ID antigo após reordenação do mapa)
-        const cloudLocValido =
-          cloudLoc && (!cloudLoc.gatiInstalacao || normKey(cloudLoc.gatiInstalacao) === normKey(l.gatiInstalacao))
-            ? cloudLoc
-            : undefined;
-
         const candPat = String(
-          cloudLocValido?.patrimonioInstalado || localAtivo?.patrimonio || l.patrimonioInstalado || ''
+          cloudLoc?.patrimonioInstalado || localAtivo?.patrimonio || l.patrimonioInstalado || ''
         ).trim();
 
         if (candPat && patrimoniosJaAlocadosEmLocais.has(candPat)) {
           // Evita que o mesmo patrimônio (ex: 8430) fique duplicado em dois locais diferentes
-          const next = { ...l, status: 'pendente' as const, protegido: false, ordemServico: '', ordemServicoRetirada: '' };
+          const next = { ...l, status: 'pendente' as const, protegido: false };
           delete next.patrimonioInstalado;
           delete next.serieInstalada;
           delete next.dataInstalacao;
           return next;
         }
 
-        if (cloudLocValido && candPat) {
+        if (cloudLoc && candPat) {
           patrimoniosJaAlocadosEmLocais.add(candPat);
           if (localAtivo) osJaVinculadasALocais.add(localAtivo.id);
           return {
             ...l,
             status: 'instalado' as const,
             patrimonioInstalado: candPat,
-            serieInstalada: cloudLocValido.serieInstalada || l.serieInstalada,
-            dataInstalacao: cloudLocValido.dataInstalacao || l.dataInstalacao,
-            ordemServico: cloudLocValido.ordemServico || l.ordemServico,
-            ordemServicoRetirada: cloudLocValido.ordemServicoRetirada || l.ordemServicoRetirada,
+            serieInstalada: cloudLoc.serieInstalada || l.serieInstalada,
+            dataInstalacao: cloudLoc.dataInstalacao || l.dataInstalacao,
+            ordemServico: cloudLoc.ordemServico || l.ordemServico,
+            ordemServicoRetirada: cloudLoc.ordemServicoRetirada || l.ordemServicoRetirada,
             protegido: true,
           };
         }
@@ -251,15 +245,7 @@ export default function App() {
       });
 
       // Passo 3B: Vincula OSs ativas que ficaram sem localId (ex: restauradas de PDF ou IDs antigos) ao próximo local livre correspondente
-      const syncedLocais = prelimLocais.map((l) => {
-        if (l.status !== 'instalado' && !l.patrimonioInstalado && l.ordemServico) {
-          const osJaUsada = osAtivasList.some((o) => o.numeroOS === l.ordemServico && osJaVinculadasALocais.has(o.id));
-          if (osJaUsada) {
-            return { ...l, ordemServico: '', ordemServicoRetirada: '' };
-          }
-        }
-        return l;
-      });
+      const syncedLocais = [...prelimLocais];
       for (const o of osAtivasList) {
         const pat = String(o.patrimonio || '').trim();
         if (!pat || osJaVinculadasALocais.has(o.id) || patrimoniosJaAlocadosEmLocais.has(pat)) continue;
@@ -714,14 +700,7 @@ export default function App() {
   const ordensAtivas = ordens.filter((o) => !o.anulada);
 
   const totalNovos = novosEquipamentos.length;
-  const patsAtivosOS = new Set(ordensAtivas.map((o) => String(o.patrimonio || '').trim()).filter(Boolean));
-  const semOSPlanilhaCount = locaisDistribuicao.filter(
-    (l) => l.status === 'instalado' && l.patrimonioInstalado && !patsAtivosOS.has(String(l.patrimonioInstalado).trim())
-  ).length;
-  const instaladosNovos = Math.max(
-    novosEquipamentos.filter((e) => e.status === 'instalado').length,
-    ordensAtivas.length + semOSPlanilhaCount
-  );
+  const instaladosNovos = novosEquipamentos.filter((e) => e.status === 'instalado').length;
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">

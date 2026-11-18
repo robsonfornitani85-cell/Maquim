@@ -557,45 +557,27 @@ export function resetAllDataToDefault(): void {
  * OSs que já estão ativas no Histórico são ignoradas.
  */
 export async function restaurarOrdens(
-  ordens: OrdemServico[],
-  ordensNuvem: OrdemServico[] = []
+  ordens: OrdemServico[]
 ): Promise<{ restauradas: OrdemServico[]; jaExistiam: OrdemServico[] }> {
-  const locaisMap = new Map<string, OrdemServico>();
-  for (const o of [...(await loadOrdens()), ...ordensNuvem]) {
-    if (!o.anulada) locaisMap.set(o.id, o);
-  }
-  const existentes = Array.from(locaisMap.values());
-  const novosNoApp = getNovosEquipamentos();
-  const locaisNoApp = getLocaisDistribuicao();
-
-  const patsInstaladosNoApp = new Set<string>([
-    ...novosNoApp.filter((n) => n.status === 'instalado').map((n) => String(n.patrimonio).trim()),
-    ...locaisNoApp.filter((l) => l.status === 'instalado' && l.patrimonioInstalado).map((l) => String(l.patrimonioInstalado).trim()),
-  ]);
-
+  const existentes = (await loadOrdens()).filter((o) => !o.anulada);
   const restauradas: OrdemServico[] = [];
   const jaExistiam: OrdemServico[] = [];
-
   for (const os of ordens) {
-    const pat = String(os.patrimonio || '').trim();
-    const numOS = String(os.numeroOS || '').trim();
     const dup = existentes.find(
       (e) =>
-        (numOS && String(e.numeroOS || '').trim() === numOS) ||
-        (pat && String(e.patrimonio || '').trim() === pat)
+        (os.numeroOS && e.numeroOS === os.numeroOS) ||
+        (!os.numeroOS && e.patrimonio === os.patrimonio && e.gatiInstalacao === os.gatiInstalacao)
     );
-    const jaInstaladoSemOS = pat && patsInstaladosNoApp.has(pat);
-
-    if (dup || jaInstaladoSemOS) {
+    if (dup) {
       jaExistiam.push(os);
       continue;
     }
-    const idx = findLocalIndex(locaisNoApp, undefined, os.gatiInstalacao, os.setor);
-    const completa: OrdemServico = { ...os, localId: idx >= 0 ? locaisNoApp[idx].id : undefined };
+    const locais = getLocaisDistribuicao();
+    const idx = findLocalIndex(locais, undefined, os.gatiInstalacao, os.setor);
+    const completa: OrdemServico = { ...os, localId: idx >= 0 ? locais[idx].id : undefined };
     await saveOrdemServico(completa);
     restauradas.push(completa);
     existentes.push(completa);
-    if (pat) patsInstaladosNoApp.add(pat);
   }
   return { restauradas, jaExistiam };
 }

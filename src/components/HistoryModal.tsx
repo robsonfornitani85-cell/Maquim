@@ -178,14 +178,14 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
     setAviso('Lendo os PDFs e enviando para o banco em nuvem...');
     try {
       const { ordens: lidas, ignorados } = await importarPDFs(arquivos);
-      const { restauradas, jaExistiam } = await restaurarOrdens(lidas, ordens);
+      const { restauradas, jaExistiam } = await restaurarOrdens(lidas);
       for (const rest of restauradas) {
         await onSaveRestoredOS?.(rest);
       }
       onRefresh?.();
       const partes = [`${restauradas.length} OS(s) reincluída(s) no Histórico e sincronizada(s) na nuvem.`];
       if (restauradas.length) partes.push(restauradas.map((o) => `OS ${o.numeroOS || 's/n'} (Patr. ${o.patrimonio})`).join(', ') + '.');
-      if (jaExistiam.length) partes.push(`${jaExistiam.length} rejeitada(s) por já existirem no app/banco de dados.`);
+      if (jaExistiam.length) partes.push(`${jaExistiam.length} já estava(m) no Histórico.`);
       if (ignorados.length) partes.push(`Arquivos que não são OS do app: ${ignorados.join(', ')}.`);
       setAviso(partes.join(' '));
       setFiltro('todas');
