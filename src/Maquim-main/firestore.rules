@@ -1,0 +1,249 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Rede de Segurança Global (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Primitivas Globais Reutilizáveis
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'robsonfornitani85@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isRestrictedAdmin() {
+      return isVerified() && request.auth.token.email == 'rj86667@gmail.com';
+    }
+
+    function isAdminViewer() {
+      return isAdmin() || isRestrictedAdmin();
+    }
+
+    // 3. Validadores de Entidades (Blueprint Validation)
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['uid', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'createdAt'])
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && (!('email' in data) || (data.email is string && data.email.size() <= 120))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidOrdem(data) {
+      return data.keys().hasAll([
+          'id', 'tecnicoNome', 'gatiInstalacao', 'clienteInstalacao',
+          'patrimonio', 'tipoConexao', 'conferenciaERS', 'substituiAnterior',
+          'responsavelNome', 'enviadoEmail', 'emailDestinatario',
+          'createdByUid', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'numeroOS', 'numeroOSRetirada', 'dataRegistro', 'dataInstalacao',
+          'tecnicoNome', 'localId', 'gatiInstalacao', 'gatiFaturamento', 'secretaria',
+          'clienteInstalacao', 'endereco', 'bairro', 'setor',
+          'patrimonio', 'numeroSerie', 'modelo', 'tipoConexao', 'enderecoIP',
+          'scanSMB', 'abbyFineReader', 'conectadoWifiERS', 'justificativaWifiERS',
+          'scanEpsonScan2', 'ocrComponente', 'conferenciaERS', 'justificativaERS',
+          'substituiAnterior', 'patrimonioAnterior', 'numeroSerieAnterior',
+          'modeloAnterior', 'tipoEquipamentoAnterior', 'contadorMono', 'contadorColor',
+          'contadorPaginasFinal', 'equipamentoRetirado', 'justificativaEquipRetirado',
+          'caboEnergiaRetirado', 'justificativaCaboEnergia', 'bandejaSaidaRetirada',
+          'justificativaBandejaSaida', 'avariasEncontradas', 'descricaoAvarias',
+          'usuariosTreinados', 'responsavelNome', 'responsavelCPF', 'observacoes',
+          'enviadoEmail', 'envioPendenteOffline', 'anulada', 'dataAnulacao',
+          'restauradaDePDF', 'restauradaPDF', 'dataEnvioEmail', 'emailDestinatario',
+          'hasAttachments', 'createdByUid', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.tecnicoNome is string && data.tecnicoNome.size() >= 1 && data.tecnicoNome.size() <= 120
+        && data.gatiInstalacao is string && data.gatiInstalacao.size() >= 1 && data.gatiInstalacao.size() <= 40
+        && data.clienteInstalacao is string && data.clienteInstalacao.size() >= 1 && data.clienteInstalacao.size() <= 160
+        && data.patrimonio is string && data.patrimonio.size() >= 1 && data.patrimonio.size() <= 40
+        && data.tipoConexao in ['Via Rede', 'Via WI-FI', 'Via USB para IMPRESSÃO']
+        && data.conferenciaERS is bool
+        && data.substituiAnterior is bool
+        && data.responsavelNome is string && data.responsavelNome.size() >= 1 && data.responsavelNome.size() <= 120
+        && data.enviadoEmail is bool
+        && data.emailDestinatario is string && data.emailDestinatario.size() <= 120
+        && data.createdByUid is string && data.createdByUid.size() >= 1 && data.createdByUid.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!('numeroOS' in data) || (data.numeroOS is string && data.numeroOS.size() <= 40))
+        && (!('numeroOSRetirada' in data) || (data.numeroOSRetirada is string && data.numeroOSRetirada.size() <= 40))
+        && (!('dataRegistro' in data) || (data.dataRegistro is string && data.dataRegistro.size() <= 50))
+        && (!('dataInstalacao' in data) || (data.dataInstalacao is string && data.dataInstalacao.size() <= 30))
+        && (!('localId' in data) || (data.localId is string && data.localId.size() <= 64))
+        && (!('gatiFaturamento' in data) || (data.gatiFaturamento is string && data.gatiFaturamento.size() <= 40))
+        && (!('secretaria' in data) || (data.secretaria is string && data.secretaria.size() <= 160))
+        && (!('endereco' in data) || (data.endereco is string && data.endereco.size() <= 240))
+        && (!('bairro' in data) || (data.bairro is string && data.bairro.size() <= 120))
+        && (!('setor' in data) || (data.setor is string && data.setor.size() <= 160))
+        && (!('numeroSerie' in data) || (data.numeroSerie is string && data.numeroSerie.size() <= 60))
+        && (!('modelo' in data) || (data.modelo is string && data.modelo.size() <= 60))
+        && (!('enderecoIP' in data) || (data.enderecoIP is string && data.enderecoIP.size() <= 45))
+        && (!('scanSMB' in data) || data.scanSMB is bool)
+        && (!('abbyFineReader' in data) || data.abbyFineReader is bool)
+        && (!('conectadoWifiERS' in data) || data.conectadoWifiERS is bool)
+        && (!('justificativaWifiERS' in data) || (data.justificativaWifiERS is string && data.justificativaWifiERS.size() <= 500))
+        && (!('scanEpsonScan2' in data) || data.scanEpsonScan2 is bool)
+        && (!('ocrComponente' in data) || data.ocrComponente is bool)
+        && (!('justificativaERS' in data) || (data.justificativaERS is string && data.justificativaERS.size() <= 500))
+        && (!('patrimonioAnterior' in data) || (data.patrimonioAnterior is string && data.patrimonioAnterior.size() <= 40))
+        && (!('numeroSerieAnterior' in data) || (data.numeroSerieAnterior is string && data.numeroSerieAnterior.size() <= 60))
+        && (!('modeloAnterior' in data) || (data.modeloAnterior is string && data.modeloAnterior.size() <= 60))
+        && (!('tipoEquipamentoAnterior' in data) || data.tipoEquipamentoAnterior in ['Mono', 'Color'])
+        && (!('contadorMono' in data) || (data.contadorMono is string && data.contadorMono.size() <= 30))
+        && (!('contadorColor' in data) || (data.contadorColor is string && data.contadorColor.size() <= 30))
+        && (!('contadorPaginasFinal' in data) || (data.contadorPaginasFinal is string && data.contadorPaginasFinal.size() <= 30))
+        && (!('equipamentoRetirado' in data) || data.equipamentoRetirado is bool)
+        && (!('justificativaEquipRetirado' in data) || (data.justificativaEquipRetirado is string && data.justificativaEquipRetirado.size() <= 500))
+        && (!('caboEnergiaRetirado' in data) || data.caboEnergiaRetirado is bool)
+        && (!('justificativaCaboEnergia' in data) || (data.justificativaCaboEnergia is string && data.justificativaCaboEnergia.size() <= 500))
+        && (!('bandejaSaidaRetirada' in data) || data.bandejaSaidaRetirada is bool)
+        && (!('justificativaBandejaSaida' in data) || (data.justificativaBandejaSaida is string && data.justificativaBandejaSaida.size() <= 500))
+        && (!('avariasEncontradas' in data) || data.avariasEncontradas is bool)
+        && (!('descricaoAvarias' in data) || (data.descricaoAvarias is string && data.descricaoAvarias.size() <= 1000))
+        && (!('usuariosTreinados' in data) || (
+          data.usuariosTreinados is list
+          && data.usuariosTreinados.size() <= 50
+          && (data.usuariosTreinados.size() == 0 || (data.usuariosTreinados[0] is string && data.usuariosTreinados[0].size() <= 120))
+        ))
+        && (!('responsavelCPF' in data) || (data.responsavelCPF is string && data.responsavelCPF.size() <= 20))
+        && (!('observacoes' in data) || (data.observacoes is string && data.observacoes.size() <= 1000))
+        && (!('envioPendenteOffline' in data) || data.envioPendenteOffline is bool)
+        && (!('anulada' in data) || data.anulada is bool)
+        && (!('dataAnulacao' in data) || (data.dataAnulacao is string && data.dataAnulacao.size() <= 50))
+        && (!('restauradaDePDF' in data) || data.restauradaDePDF is bool)
+        && (!('restauradaPDF' in data) || data.restauradaPDF is bool)
+        && (!('dataEnvioEmail' in data) || (data.dataEnvioEmail is string && data.dataEnvioEmail.size() <= 50))
+        && (!('hasAttachments' in data) || data.hasAttachments is bool);
+    }
+
+    function isValidAttachment(data) {
+      return data.keys().hasAll(['type', 'dataUrl', 'createdByUid', 'createdAt'])
+        && data.keys().hasOnly(['type', 'dataUrl', 'createdByUid', 'createdAt'])
+        && data.type in ['signature', 'relatorio', 'avaria']
+        && data.dataUrl is string && data.dataUrl.size() >= 1 && data.dataUrl.size() <= 750000
+        && data.createdByUid is string && data.createdByUid.size() >= 1 && data.createdByUid.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidContractSync(data) {
+      return data.keys().hasAll(['installedNovos', 'installedLocais', 'retiredEquip', 'locks', 'activeOrdensSummary', 'updatedByUid', 'updatedAt'])
+        && data.keys().hasOnly(['installedNovos', 'installedLocais', 'retiredEquip', 'locks', 'activeOrdensSummary', 'updatedByUid', 'updatedAt'])
+        && data.installedNovos is map
+        && data.installedLocais is map
+        && data.retiredEquip is map
+        && data.locks is map
+        && data.activeOrdensSummary is map
+        && data.updatedByUid is string && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128
+        && data.updatedAt is timestamp;
+    }
+
+    // 4. Regras por Coleção
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, create, update, delete: if false;
+    }
+
+    match /admins/{uid} {
+      allow get: if isSignedIn() && isValidId(uid) && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(uid) && isValidAdmin(incoming()) && incoming().uid == uid && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(uid);
+    }
+
+    match /ordens/{osId} {
+      allow get: if isSignedIn() && isValidId(osId) && (
+        isAdminViewer() ||
+        resource == null ||
+        existing().createdByUid == request.auth.uid
+      );
+      allow list: if isAdminViewer() || (isSignedIn() && resource.data.createdByUid == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(osId)
+        && isValidOrdem(incoming())
+        && incoming().id == osId
+        && incoming().createdByUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(osId)
+        && isValidOrdem(incoming())
+        && incoming().id == existing().id
+        && incoming().createdByUid == existing().createdByUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['anulada', 'dataAnulacao', 'updatedAt', 'restauradaDePDF', 'restauradaPDF', 'enviadoEmail', 'envioPendenteOffline', 'dataEnvioEmail', 'hasAttachments'])) ||
+          (existing().createdByUid == request.auth.uid && existing().anulada != true && incoming().diff(existing()).affectedKeys().hasOnly(['enviadoEmail', 'envioPendenteOffline', 'dataEnvioEmail', 'hasAttachments', 'updatedAt']))
+        );
+      allow delete: if false;
+
+      match /attachments/{attType} {
+        allow get: if isSignedIn() && isValidId(osId) && isValidId(attType) && (
+          isAdminViewer() ||
+          resource == null ||
+          get(/databases/$(database)/documents/ordens/$(osId)).data.createdByUid == request.auth.uid
+        );
+        allow list: if isAdminViewer() || (isSignedIn() && resource.data.createdByUid == request.auth.uid);
+        allow create: if isSignedIn() && isValidId(osId) && isValidId(attType)
+          && attType in ['signature', 'relatorio', 'avaria']
+          && isValidAttachment(incoming())
+          && incoming().type == attType
+          && incoming().createdByUid == request.auth.uid
+          && incoming().createdAt == request.time
+          && (
+            existsAfter(/databases/$(database)/documents/ordens/$(osId)) ||
+            get(/databases/$(database)/documents/ordens/$(osId)).data.createdByUid == request.auth.uid
+          );
+        allow update, delete: if false;
+      }
+    }
+
+    match /contract_sync/{contractId} {
+      allow get: if isSignedIn() && isValidId(contractId) && contractId == 'lorena_234';
+      allow list: if false;
+      allow create: if isSignedIn() && isValidId(contractId) && contractId == 'lorena_234'
+        && isValidContractSync(incoming())
+        && incoming().updatedByUid == request.auth.uid
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(contractId) && contractId == 'lorena_234'
+        && isValidContractSync(incoming())
+        && incoming().updatedByUid == request.auth.uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['installedNovos', 'installedLocais', 'retiredEquip', 'locks', 'activeOrdensSummary', 'updatedByUid', 'updatedAt'])
+        && (
+          isAdmin() ||
+          (
+            incoming().installedNovos.keys().hasAll(existing().installedNovos.keys())
+            && incoming().installedLocais.keys().hasAll(existing().installedLocais.keys())
+            && incoming().retiredEquip.keys().hasAll(existing().retiredEquip.keys())
+            && incoming().activeOrdensSummary.keys().hasAll(existing().activeOrdensSummary.keys())
+          )
+        );
+      allow delete: if false;
+    }
+  }
+}
