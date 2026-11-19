@@ -121,9 +121,45 @@ export default function App() {
         }
       }
 
-      const mergedOrdens = Array.from(map.values()).sort((a, b) =>
-        (b.dataRegistro || '').localeCompare(a.dataRegistro || '')
-      );
+      // Deduplica OSs ativas pelo número do patrimônio, mantendo sempre a OS mais completa (com assinatura/CPF/técnico real/IP)
+      const scoreOS = (o: OrdemServico): number => {
+        let s = 0;
+        if (o.numeroOS && o.numeroOS.trim() && o.numeroOS !== 'Pendente na planilha') s += 10;
+        if (o.assinaturaClienteBase64) s += 8;
+        if (o.pdfsOriginais && o.pdfsOriginais.length > 0) s += 6;
+        if (o.responsavelCPF && o.responsavelCPF !== '000.000.000-00') s += 5;
+        if (o.tecnicoNome && o.tecnicoNome !== 'Técnico Maquim' && o.tecnicoNome !== 'Admin (Planilha)') s += 4;
+        if (o.enderecoIP) s += 3;
+        if (o.patrimonioAnterior) s += 2;
+        if (o.localId) s += 1;
+        return s;
+      };
+
+      const dedupAtivasPorPatrimonio = new Map<string, OrdemServico>();
+      const anuladasList: OrdemServico[] = [];
+      const ativasSemPatrimonio: OrdemServico[] = [];
+
+      for (const o of map.values()) {
+        if (o.anulada) {
+          anuladasList.push(o);
+          continue;
+        }
+        const pat = String(o.patrimonio || '').trim();
+        if (!pat) {
+          ativasSemPatrimonio.push(o);
+          continue;
+        }
+        const atual = dedupAtivasPorPatrimonio.get(pat);
+        if (!atual || scoreOS(o) > scoreOS(atual)) {
+          dedupAtivasPorPatrimonio.set(pat, o);
+        }
+      }
+
+      const mergedOrdens = [
+        ...Array.from(dedupAtivasPorPatrimonio.values()),
+        ...ativasSemPatrimonio,
+        ...anuladasList,
+      ].sort((a, b) => (b.dataRegistro || '').localeCompare(a.dataRegistro || ''));
       setOrdens(mergedOrdens);
 
       // 2. Mapeia OSs ativas e anuladas (com normalização para reconciliação única)
@@ -189,30 +225,39 @@ export default function App() {
           return next;
         }
 
-        const candPat = String(
-          cloudLoc?.patrimonioInstalado || localAtivo?.patrimonio || l.patrimonioInstalado || ''
+        const cloudPatLimpo = String(cloudLoc?.patrimonioInstalado || '').trim();
+        const cloudLocValido =
+          cloudLoc &&
+          !['8259', '8260', '8482'].includes(cloudPatLimpo) &&
+          (!cloudLoc.gatiInstalacao || normKey(cloudLoc.gatiInstalacao) === normKey(l.gatiInstalacao))
+            ? cloudLoc
+            : undefined;
+
+        const candPatRaw = String(
+          cloudLocValido?.patrimonioInstalado || localAtivo?.patrimonio || l.patrimonioInstalado || ''
         ).trim();
+        const candPat = ['8259', '8260', '8482'].includes(candPatRaw) ? '' : candPatRaw;
 
         if (candPat && patrimoniosJaAlocadosEmLocais.has(candPat)) {
-          // Evita que o mesmo patrimônio (ex: 8430) fique duplicado em dois locais diferentes
-          const next = { ...l, status: 'pendente' as const, protegido: false };
+          // Evita que o mesmo patrimônio fique duplicado em dois locais diferentes
+          const next = { ...l, status: 'pendente' as const, protegido: false, ordemServico: '', ordemServicoRetirada: '' };
           delete next.patrimonioInstalado;
           delete next.serieInstalada;
           delete next.dataInstalacao;
           return next;
         }
 
-        if (cloudLoc && candPat) {
+        if (cloudLocValido && candPat) {
           patrimoniosJaAlocadosEmLocais.add(candPat);
           if (localAtivo) osJaVinculadasALocais.add(localAtivo.id);
           return {
             ...l,
             status: 'instalado' as const,
             patrimonioInstalado: candPat,
-            serieInstalada: cloudLoc.serieInstalada || l.serieInstalada,
-            dataInstalacao: cloudLoc.dataInstalacao || l.dataInstalacao,
-            ordemServico: cloudLoc.ordemServico || l.ordemServico,
-            ordemServicoRetirada: cloudLoc.ordemServicoRetirada || l.ordemServicoRetirada,
+            serieInstalada: cloudLocValido.serieInstalada || l.serieInstalada,
+            dataInstalacao: cloudLocValido.dataInstalacao || l.dataInstalacao,
+            ordemServico: cloudLocValido.ordemServico || l.ordemServico,
+            ordemServicoRetirada: cloudLocValido.ordemServicoRetirada || l.ordemServicoRetirada,
             protegido: true,
           };
         }
@@ -299,11 +344,12 @@ export default function App() {
       const syncedNovos = rawNovos.map((n) => {
         const pat = String(n.patrimonio).trim();
         const patKey = sanitizeSyncKey(pat);
-        const cloudNovo = sync?.installedNovos?.[patKey];
+        const isTestePat = ['8259', '8260', '8482'].includes(pat);
+        const cloudNovo = isTestePat ? undefined : sync?.installedNovos?.[patKey];
         const localAtivo = ativosNovosMap.get(pat);
         const locVinculado = locaisPorPatrimonio.get(pat);
 
-        if (localAtivo || locVinculado || cloudNovo) {
+        if (!isTestePat && (localAtivo || locVinculado || cloudNovo)) {
           return {
             ...n,
             status: 'instalado' as const,
@@ -699,8 +745,8 @@ export default function App() {
 
   const ordensAtivas = ordens.filter((o) => !o.anulada);
 
-  const totalNovos = novosEquipamentos.length;
-  const instaladosNovos = novosEquipamentos.filter((e) => e.status === 'instalado').length;
+  const totalNovos = locaisDistribuicao.length || novosEquipamentos.length;
+  const instaladosNovos = locaisDistribuicao.filter((l) => l.status === 'instalado').length;
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
