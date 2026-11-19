@@ -414,7 +414,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
               <FileText className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-slate-800">Histórico de OSs ({ativas.length})</h2>
+              <h2 className="text-base sm:text-lg font-bold text-slate-800">Ordens de Serviço & PDFs ({ativas.length})</h2>
               <p className="text-xs text-slate-500">Sincronizado na nuvem Firebase e salvo neste aparelho com PDFs</p>
             </div>
           </div>
@@ -439,7 +439,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                 className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-500 text-slate-700 text-xs font-semibold rounded-xl transition-all shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
-                Exportar Excel
+                Baixar Relatório de OSs (.xlsx)
               </button>
             )}
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-200/60 transition-colors" aria-label="Fechar">

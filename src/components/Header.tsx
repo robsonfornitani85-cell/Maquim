@@ -112,20 +112,20 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               onClick={onOpenSpreadsheet}
               className="px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/10 rounded-xl flex items-center gap-1.5 transition-colors"
-              title="Abrir dados das planilhas e gerenciar OSs"
+              title="Abrir Mapa de Instalações, Equipamentos e Retiradas"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              <span className="hidden sm:inline">Planilhas</span>
+              <span className="hidden sm:inline">Planilha Oficial</span>
             </button>
 
             <button
               type="button"
               onClick={onOpenHistory}
               className="px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/10 rounded-xl flex items-center gap-1.5 transition-colors"
-              title="Ver histórico de Ordens de Serviço"
+              title="Ver Ordens de Serviço emitidas e PDFs salvos"
             >
               <History className="w-4 h-4 text-blue-400" />
-              <span className="hidden sm:inline">Histórico OS</span>
+              <span className="hidden sm:inline">OSs & PDFs</span>
             </button>
 
             <button

@@ -435,7 +435,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-slate-800">
-                  Planilhas & Banco de Dados do Contrato
+                  Planilha Oficial & Banco de Dados
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
                   Base Oficial 100% Real
@@ -497,7 +497,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
                   ? 'Exportar Novos + OS (.xlsx)'
                   : activeTab === 'retiradas'
                   ? 'Exportar Retiradas + OS (.xlsx)'
-                  : 'Exportar Distribuição (.xlsx)'}
+                  : 'Baixar Planilha Oficial (.xlsx)'}
               </button>
             )}
             <button
@@ -618,7 +618,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
               }`}
             >
               <MapPin className="w-3.5 h-3.5 text-blue-600" />
-              Distribuição Lorena ({locaisDistribuicao.length})
+              Mapa de Instalações ({locaisDistribuicao.length})
             </button>
             <button
               onClick={() => setActiveTab('novos')}
@@ -629,7 +629,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
               }`}
             >
               <Printer className="w-3.5 h-3.5 text-indigo-600" />
-              234 Novos Patrimônios
+              Equipamentos Novos ({novosEquipamentos.length})
             </button>
             <button
               onClick={() => setActiveTab('retiradas')}
@@ -640,7 +640,7 @@ export const SpreadsheetViewerModal: React.FC<SpreadsheetViewerModalProps> = ({
               }`}
             >
               <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
-              Retiradas Contrato Anterior ({equipamentosAnteriores.length})
+              Retiradas ({equipamentosAnteriores.length})
             </button>
           </div>
 
