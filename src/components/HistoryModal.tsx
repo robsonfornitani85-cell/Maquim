@@ -143,7 +143,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [dataFiltro, setDataFiltro] = useState('');
-  const [filtro, setFiltro] = useState<'todas' | 'planilha' | 'anuladas'>('todas');
+  const [filtro, setFiltro] = useState<'todas' | 'anuladas'>('todas');
   const [aviso, setAviso] = useState('');
   const [importando, setImportando] = useState(false);
   const inputPDFRef = useRef<HTMLInputElement>(null);
@@ -372,19 +372,10 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
     });
   }, [semOSTodas, search, dataFiltro]);
 
-  useEffect(() => {
-    if (filtro === 'planilha' && semOSTodas.length === 0) {
-      setFiltro('todas');
-    }
-  }, [filtro, semOSTodas.length]);
 
-  const totalGeralInstalados = ativas.length + semOSTodas.length;
-  const totalInstaladosFiltrados =
-    filtro === 'todas'
-      ? filtered.length + semOSNesteAparelho.length
-      : filtro === 'planilha'
-        ? semOSNesteAparelho.length
-        : filtered.length;
+
+  const totalGeralInstalados = ativas.length;
+  const totalInstaladosFiltrados = filtered.length;
   const temFiltroAtivo = Boolean(dataFiltro || search.trim());
 
   if (!isOpen) return null;
@@ -474,8 +465,8 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
                 </p>
                 <p className="text-[11px] font-medium text-emerald-800">
                   {temFiltroAtivo && filtro === 'todas'
-                    ? `Filtro ativo • Total geral acumulado: ${totalGeralInstalados} instalados`
-                    : `${ativas.length} com OS no histórico${semOSTodas.length > 0 ? ` + ${semOSTodas.length} na planilha` : ''}`}
+                    ? `Filtro ativo • Total geral: ${totalGeralInstalados} OSs disponíveis`
+                    : `${ativas.length} instalações com OS e PDFs disponíveis para baixar`}
                 </p>
               </div>
             </div>
@@ -549,16 +540,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
             >
               Todas ({ativas.length})
             </button>
-            {semOSTodas.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setFiltro('planilha')}
-                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold border whitespace-nowrap ${filtro === 'planilha' ? 'bg-amber-600 text-white border-amber-600' : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'}`}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                Só planilha ({semOSTodas.length})
-              </button>
-            )}
+
             <button
               type="button"
               onClick={() => setFiltro('anuladas')}
@@ -604,8 +586,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
 
         {/* Lista */}
         <div className="flex-1 overflow-auto p-3 sm:p-4 bg-slate-50/50 space-y-3">
-          {((filtro === 'planilha' && semOSNesteAparelho.length === 0) ||
-            (filtro !== 'planilha' && filtered.length === 0 && (filtro === 'anuladas' || semOSNesteAparelho.length === 0))) && (
+          {filtered.length === 0 && (
             <div className="text-center py-10 text-slate-500 text-sm space-y-2">
               <FileText className="w-10 h-10 mx-auto text-slate-300 stroke-1" />
               <p>
@@ -746,110 +727,6 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
             </div>
           ))}
 
-          {(filtro === 'todas' || filtro === 'planilha') && semOSNesteAparelho.length > 0 && (
-            <div className={filtro === 'todas' ? 'pt-2' : ''}>
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 mb-2">
-                <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                <span>
-                  <strong>{semOSNesteAparelho.length} instalação(ões) marcadas na planilha sem OS correspondente neste Histórico</strong>.{' '}
-                  {canAnnul ? (
-                    <>
-                      Você pode clicar em <strong>"Inserir no Histórico"</strong> para gerar a OS na lista ou clicar diretamente em{' '}
-                      <strong>"Anular"</strong> caso esteja incorreta.
-                    </>
-                  ) : isAdmin ? (
-                    <>
-                      Você pode clicar em <strong>"Inserir no Histórico"</strong> para gerar a OS na lista.
-                    </>
-                  ) : (
-                    <>
-                      Os locais e patrimônios já estão bloqueados em tempo real para evitar duplicidade. Entre como <strong>Admin (Google)</strong> caso precise gerenciar.
-                    </>
-                  )}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {semOSNesteAparelho.map((l) => (
-                  <div
-                    key={l.id}
-                    className="bg-white rounded-2xl p-4 border border-amber-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                          Só na Planilha
-                        </span>
-                        {l.ordemServico && (
-                          <span className="font-mono font-bold text-blue-700 text-sm">
-                            OS Inst: #{l.ordemServico}
-                          </span>
-                        )}
-                        <span className="font-mono font-bold text-slate-700 text-xs">
-                          GATi {l.gatiInstalacao}
-                        </span>
-                        {l.dataInstalacao && (
-                          <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
-                            <Calendar className="w-3 h-3" /> {formatData(l.dataInstalacao)}
-                          </span>
-                        )}
-                      </div>
-
-                      <p className="font-bold text-slate-900 text-sm">{l.clienteInstalacao}</p>
-                      {l.setor && (
-                        <p className="text-xs font-bold text-indigo-800 uppercase flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {l.setor}
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap gap-2 pt-1 text-[11px] text-slate-600">
-                        <span className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2 py-0.5 rounded-md font-mono font-bold">
-                          Patr: #{l.patrimonioInstalado || 'Não informado'}
-                        </span>
-                        {l.serieInstalada && (
-                          <span className="bg-slate-100 px-2 py-0.5 rounded-md font-mono">
-                            Série: {l.serieInstalada}
-                          </span>
-                        )}
-                        <span className="bg-slate-100 px-2 py-0.5 rounded-md font-mono">
-                          Modelo: {l.modeloPrevisto}
-                        </span>
-                        {l.secretaria && <span>{l.secretaria}</span>}
-                      </div>
-                    </div>
-
-                    {isAdmin && (
-                      <div className="flex flex-wrap items-center gap-1.5 md:justify-end shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleInserirPlanilhaNoHistorico(l)}
-                          disabled={inserindoLocalId === l.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl shadow-xs transition-colors"
-                        >
-                          <PlusCircle className="w-3.5 h-3.5" />
-                          {inserindoLocalId === l.id ? 'Inserindo...' : 'Inserir no Histórico'}
-                        </button>
-                        {canAnnul && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOsParaAnular(null);
-                              setLocalParaAnular(l);
-                              setSenhaAnulacao('');
-                              setErroAnulacao('');
-                            }}
-                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200"
-                            title="Anular instalação da planilha e liberar patrimônio"
-                          >
-                            <Ban className="w-3.5 h-3.5" /> Anular
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
       {(osParaAnular || localParaAnular) && (
