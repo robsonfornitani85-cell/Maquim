@@ -154,13 +154,13 @@ export default function App() {
           };
         }
 
-        // 2. ESF Olaria (GATi 32325): corrigir 8430/2026110446 -> Patr. 8434, NS XC75066215, OS 2026110451
-        if ((gati === '32325' || cli.includes('ESF OLARIA')) && (pat === '8430' || next.numeroOS === '2026110446')) {
+        // 2. ESF Olaria (GATi 32325): Patr. 8430 (XC75066209) permanece na ESF Olaria com Setor/Sala CONSULTÓRIO
+        if ((gati === '32325' || cli.includes('ESF OLARIA')) && pat === '8430') {
           next = {
             ...next,
-            patrimonio: '8434',
-            numeroSerie: 'XC75066215',
-            numeroOS: '2026110451',
+            patrimonio: '8430',
+            numeroSerie: 'XC75066209',
+            setor: 'CONSULTÓRIO',
           };
         }
 
@@ -190,6 +190,12 @@ export default function App() {
         // Regra específica Patr. 8472 (OS 2026110205): manter APENAS NS XC75066156
         if (pat === '8472') {
           return String(o.numeroSerie || '').trim() === 'XC75066156' ? 1000 : -1000;
+        }
+
+        // Regra específica Patr. 8430 (OS 2026110446): manter na ESF Olaria (GATi 32325) com Setor CONSULTÓRIO
+        if (pat === '8430') {
+          const isOlaria = String(o.gatiInstalacao || '').trim() === '32325' || String(o.clienteInstalacao || '').toUpperCase().includes('ESF OLARIA');
+          return isOlaria ? 1000 : -1000;
         }
 
         // Prioridade máxima para fotos anexas e assinatura (ex: 8409 e Paço Municipal)
@@ -342,6 +348,8 @@ export default function App() {
             patrimonioInstalado: candPat,
             serieInstalada: localAtivo.numeroSerie || l.serieInstalada,
             dataInstalacao: localAtivo.dataInstalacao || l.dataInstalacao,
+            setor: localAtivo.setor || l.setor,
+            localizacao: localAtivo.setor || l.localizacao,
             ordemServico: localAtivo.numeroOS || l.ordemServico,
             ordemServicoRetirada: localAtivo.numeroOSRetirada || l.ordemServicoRetirada,
             protegido: true,
@@ -393,6 +401,8 @@ export default function App() {
             patrimonioInstalado: pat,
             serieInstalada: o.numeroSerie || l.serieInstalada,
             dataInstalacao: o.dataInstalacao || l.dataInstalacao,
+            setor: o.setor || l.setor,
+            localizacao: o.setor || l.localizacao,
             ordemServico: o.numeroOS || l.ordemServico,
             ordemServicoRetirada: o.numeroOSRetirada || l.ordemServicoRetirada,
             protegido: true,
