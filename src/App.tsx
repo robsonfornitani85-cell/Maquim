@@ -127,14 +127,7 @@ export default function App() {
         const numOS = String(o.numeroOS || '').trim();
         if (pat === '8259' && (numOS === '2026110191' || o.id === 'os-base-8259')) return true;
         if (pat === '8260' && (numOS === '2026110192' || o.id === 'os-base-8260')) return true;
-        if (
-          pat === '8482' &&
-          (!numOS ||
-            String(o.responsavelNome || '').toLowerCase().includes('rick') ||
-            String(o.tecnicoNome || '').toLowerCase().includes('rusb'))
-        ) {
-          return true;
-        }
+        if (pat === '8482') return true;
         return false;
       };
 
@@ -307,6 +300,7 @@ export default function App() {
         const cloudLocValido =
           cloudLoc &&
           !['8259', '8260', '8482'].includes(cloudPatLimpo) &&
+          ativosNovosMap.has(cloudPatLimpo) &&
           (!cloudLoc.gatiInstalacao || normKey(cloudLoc.gatiInstalacao) === normKey(l.gatiInstalacao))
             ? cloudLoc
             : undefined;
@@ -355,7 +349,7 @@ export default function App() {
             protegido: true,
           };
         }
-        if (l.status === 'instalado' && candPat) {
+        if (l.status === 'instalado' && candPat && ativosNovosMap.has(candPat)) {
           patrimoniosJaAlocadosEmLocais.add(candPat);
           const osMatch = ativosNovosMap.get(candPat);
           if (osMatch) osJaVinculadasALocais.add(osMatch.id);
@@ -365,6 +359,13 @@ export default function App() {
             ordemServicoRetirada: l.ordemServicoRetirada || osMatch?.numeroOSRetirada || '',
             protegido: true,
           };
+        }
+        if (l.status === 'instalado') {
+          const next = { ...l, status: 'pendente' as const, protegido: false, ordemServico: '', ordemServicoRetirada: '' };
+          delete next.patrimonioInstalado;
+          delete next.serieInstalada;
+          delete next.dataInstalacao;
+          return next;
         }
         return l;
       });
@@ -828,7 +829,7 @@ export default function App() {
   const ordensAtivas = ordens.filter((o) => !o.anulada);
 
   const totalNovos = locaisDistribuicao.length || novosEquipamentos.length;
-  const instaladosNovos = locaisDistribuicao.filter((l) => l.status === 'instalado').length;
+  const instaladosNovos = ordensAtivas.length;
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
