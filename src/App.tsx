@@ -121,15 +121,85 @@ export default function App() {
         }
       }
 
-      // Deduplica OSs ativas pelo número do patrimônio, mantendo sempre a OS mais completa (com assinatura/CPF/técnico real/IP)
+      // Sanitiza testes removidos (8259, 8260, 8482) e aplica retificações oficiais de patrimônio/NS/OS/retirada
+      const isRegistroDeTeste = (o: OrdemServico): boolean => {
+        const pat = String(o.patrimonio || '').trim();
+        const numOS = String(o.numeroOS || '').trim();
+        if (pat === '8259' && (numOS === '2026110191' || o.id === 'os-base-8259')) return true;
+        if (pat === '8260' && (numOS === '2026110192' || o.id === 'os-base-8260')) return true;
+        if (
+          pat === '8482' &&
+          (!numOS ||
+            String(o.responsavelNome || '').toLowerCase().includes('rick') ||
+            String(o.tecnicoNome || '').toLowerCase().includes('rusb'))
+        ) {
+          return true;
+        }
+        return false;
+      };
+
+      const retificarOS = (o: OrdemServico): OrdemServico => {
+        let next = { ...o };
+        const pat = String(next.patrimonio || '').trim();
+        const gati = String(next.gatiInstalacao || '').trim();
+        const cli = String(next.clienteInstalacao || '').toUpperCase();
+
+        // 1. Junta Militar (GATi 28933): corrigir 8265 -> Patr. 8365, NS XC75066190, OS 2026110366
+        if ((gati === '28933' || cli.includes('JUNTA MILITAR')) && (pat === '8265' || pat === '8365')) {
+          next = {
+            ...next,
+            patrimonio: '8365',
+            numeroSerie: 'XC75066190',
+            numeroOS: '2026110366',
+          };
+        }
+
+        // 2. ESF Olaria (GATi 32325): corrigir 8430/2026110446 -> Patr. 8434, NS XC75066215, OS 2026110451
+        if ((gati === '32325' || cli.includes('ESF OLARIA')) && (pat === '8430' || next.numeroOS === '2026110446')) {
+          next = {
+            ...next,
+            patrimonio: '8434',
+            numeroSerie: 'XC75066215',
+            numeroOS: '2026110451',
+          };
+        }
+
+        // 3. Patr. 8435 (OS 2026110453 - UBS Bairro da Cruz): corrigir retirada 8435/2026110442 -> Patr. 4545, OS Ret. 2026110250
+        if (pat === '8435' && next.numeroOS === '2026110453' && (next.patrimonioAnterior === '8435' || next.numeroOSRetirada === '2026110442')) {
+          next = {
+            ...next,
+            substituiAnterior: true,
+            patrimonioAnterior: '4545',
+            numeroOSRetirada: '2026110250',
+          };
+        }
+
+        return next;
+      };
+
+      // Deduplica OSs ativas pelo número do patrimônio seguindo as regras exatas de prioridade
       const scoreOS = (o: OrdemServico): number => {
+        const pat = String(o.patrimonio || '').trim();
         let s = 0;
-        if (o.numeroOS && o.numeroOS.trim() && o.numeroOS !== 'Pendente na planilha') s += 10;
-        if (o.assinaturaClienteBase64) s += 8;
-        if (o.pdfsOriginais && o.pdfsOriginais.length > 0) s += 6;
-        if (o.responsavelCPF && o.responsavelCPF !== '000.000.000-00') s += 5;
-        if (o.tecnicoNome && o.tecnicoNome !== 'Técnico Maquim' && o.tecnicoNome !== 'Admin (Planilha)') s += 4;
-        if (o.enderecoIP) s += 3;
+
+        // Regra específica Patr. 8426 (OS 2026110441): manter APENAS a cópia SEM retirada
+        if (pat === '8426') {
+          return !o.substituiAnterior && !o.patrimonioAnterior ? 1000 : -1000;
+        }
+
+        // Regra específica Patr. 8472 (OS 2026110205): manter APENAS NS XC75066156
+        if (pat === '8472') {
+          return String(o.numeroSerie || '').trim() === 'XC75066156' ? 1000 : -1000;
+        }
+
+        // Prioridade máxima para fotos anexas e assinatura (ex: 8409 e Paço Municipal)
+        if (o.fotoRelatorioContadorBase64 || o.fotoAvariaBase64) s += 50;
+        if (o.assinaturaClienteBase64) s += 30;
+        if (o.pdfsOriginais && o.pdfsOriginais.length > 0) s += 15;
+        if (o.numeroOS && o.numeroOS.trim() && o.numeroOS !== 'Pendente na planilha') s += 12;
+        if (o.responsavelCPF && o.responsavelCPF !== '000.000.000-00') s += 10;
+        if (o.tecnicoNome && o.tecnicoNome !== 'Técnico Maquim' && o.tecnicoNome !== 'Admin (Planilha)') s += 8;
+        if (o.enderecoIP) s += 6;
         if (o.patrimonioAnterior) s += 2;
         if (o.localId) s += 1;
         return s;
@@ -139,7 +209,9 @@ export default function App() {
       const anuladasList: OrdemServico[] = [];
       const ativasSemPatrimonio: OrdemServico[] = [];
 
-      for (const o of map.values()) {
+      for (const rawO of map.values()) {
+        if (isRegistroDeTeste(rawO)) continue;
+        const o = retificarOS(rawO);
         if (o.anulada) {
           anuladasList.push(o);
           continue;
