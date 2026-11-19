@@ -426,7 +426,7 @@ export const HistoryModal: React.FC<HistoryModalProps> = ({
             {ordens.length > 0 && (
               <button
                 type="button"
-                onClick={() => exportOrdensToExcel(ordens)}
+                onClick={() => exportOrdensToExcel(ativas)}
                 className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-500 text-slate-700 text-xs font-semibold rounded-xl transition-all shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
