@@ -121,15 +121,91 @@ export default function App() {
         }
       }
 
-      // Deduplica OSs ativas pelo número do patrimônio, mantendo sempre a OS mais completa (com assinatura/CPF/técnico real/IP)
+      // Sanitiza testes removidos (8259, 8260, 8482) e aplica retificações oficiais de patrimônio/NS/OS/retirada
+      const isRegistroDeTeste = (o: OrdemServico): boolean => {
+        const pat = String(o.patrimonio || '').trim();
+        const numOS = String(o.numeroOS || '').trim();
+        if (pat === '8259' && (numOS === '2026110191' || o.id === 'os-base-8259')) return true;
+        if (pat === '8260' && (numOS === '2026110192' || o.id === 'os-base-8260')) return true;
+        if (
+          pat === '8482' &&
+          (!numOS ||
+            String(o.responsavelNome || '').toLowerCase().includes('rick') ||
+            String(o.tecnicoNome || '').toLowerCase().includes('rusb'))
+        ) {
+          return true;
+        }
+        return false;
+      };
+
+      const retificarOS = (o: OrdemServico): OrdemServico => {
+        let next = { ...o };
+        const pat = String(next.patrimonio || '').trim();
+        const gati = String(next.gatiInstalacao || '').trim();
+        const cli = String(next.clienteInstalacao || '').toUpperCase();
+
+        // 1. Junta Militar (GATi 28933): corrigir 8265 -> Patr. 8365, NS XC75066190, OS 2026110366
+        if ((gati === '28933' || cli.includes('JUNTA MILITAR')) && (pat === '8265' || pat === '8365')) {
+          next = {
+            ...next,
+            patrimonio: '8365',
+            numeroSerie: 'XC75066190',
+            numeroOS: '2026110366',
+          };
+        }
+
+        // 2. ESF Olaria (GATi 32325): Patr. 8430 (XC75066209) permanece na ESF Olaria com Setor/Sala CONSULTÓRIO
+        if ((gati === '32325' || cli.includes('ESF OLARIA')) && pat === '8430') {
+          next = {
+            ...next,
+            patrimonio: '8430',
+            numeroSerie: 'XC75066209',
+            setor: 'CONSULTÓRIO',
+          };
+        }
+
+        // 3. Patr. 8435 (OS 2026110453 - UBS Bairro da Cruz): corrigir retirada 8435/2026110442 -> Patr. 4545, OS Ret. 2026110250
+        if (pat === '8435' && next.numeroOS === '2026110453' && (next.patrimonioAnterior === '8435' || next.numeroOSRetirada === '2026110442')) {
+          next = {
+            ...next,
+            substituiAnterior: true,
+            patrimonioAnterior: '4545',
+            numeroOSRetirada: '2026110250',
+          };
+        }
+
+        return next;
+      };
+
+      // Deduplica OSs ativas pelo número do patrimônio seguindo as regras exatas de prioridade
       const scoreOS = (o: OrdemServico): number => {
+        const pat = String(o.patrimonio || '').trim();
         let s = 0;
-        if (o.numeroOS && o.numeroOS.trim() && o.numeroOS !== 'Pendente na planilha') s += 10;
-        if (o.assinaturaClienteBase64) s += 8;
-        if (o.pdfsOriginais && o.pdfsOriginais.length > 0) s += 6;
-        if (o.responsavelCPF && o.responsavelCPF !== '000.000.000-00') s += 5;
-        if (o.tecnicoNome && o.tecnicoNome !== 'Técnico Maquim' && o.tecnicoNome !== 'Admin (Planilha)') s += 4;
-        if (o.enderecoIP) s += 3;
+
+        // Regra específica Patr. 8426 (OS 2026110441): manter APENAS a cópia SEM retirada
+        if (pat === '8426') {
+          return !o.substituiAnterior && !o.patrimonioAnterior ? 1000 : -1000;
+        }
+
+        // Regra específica Patr. 8472 (OS 2026110205): manter APENAS NS XC75066156
+        if (pat === '8472') {
+          return String(o.numeroSerie || '').trim() === 'XC75066156' ? 1000 : -1000;
+        }
+
+        // Regra específica Patr. 8430 (OS 2026110446): manter na ESF Olaria (GATi 32325) com Setor CONSULTÓRIO
+        if (pat === '8430') {
+          const isOlaria = String(o.gatiInstalacao || '').trim() === '32325' || String(o.clienteInstalacao || '').toUpperCase().includes('ESF OLARIA');
+          return isOlaria ? 1000 : -1000;
+        }
+
+        // Prioridade máxima para fotos anexas e assinatura (ex: 8409 e Paço Municipal)
+        if (o.fotoRelatorioContadorBase64 || o.fotoAvariaBase64) s += 50;
+        if (o.assinaturaClienteBase64) s += 30;
+        if (o.pdfsOriginais && o.pdfsOriginais.length > 0) s += 15;
+        if (o.numeroOS && o.numeroOS.trim() && o.numeroOS !== 'Pendente na planilha') s += 12;
+        if (o.responsavelCPF && o.responsavelCPF !== '000.000.000-00') s += 10;
+        if (o.tecnicoNome && o.tecnicoNome !== 'Técnico Maquim' && o.tecnicoNome !== 'Admin (Planilha)') s += 8;
+        if (o.enderecoIP) s += 6;
         if (o.patrimonioAnterior) s += 2;
         if (o.localId) s += 1;
         return s;
@@ -139,7 +215,9 @@ export default function App() {
       const anuladasList: OrdemServico[] = [];
       const ativasSemPatrimonio: OrdemServico[] = [];
 
-      for (const o of map.values()) {
+      for (const rawO of map.values()) {
+        if (isRegistroDeTeste(rawO)) continue;
+        const o = retificarOS(rawO);
         if (o.anulada) {
           anuladasList.push(o);
           continue;
@@ -229,6 +307,7 @@ export default function App() {
         const cloudLocValido =
           cloudLoc &&
           !['8259', '8260', '8482'].includes(cloudPatLimpo) &&
+          ativosNovosMap.has(cloudPatLimpo) &&
           (!cloudLoc.gatiInstalacao || normKey(cloudLoc.gatiInstalacao) === normKey(l.gatiInstalacao))
             ? cloudLoc
             : undefined;
@@ -270,12 +349,14 @@ export default function App() {
             patrimonioInstalado: candPat,
             serieInstalada: localAtivo.numeroSerie || l.serieInstalada,
             dataInstalacao: localAtivo.dataInstalacao || l.dataInstalacao,
+            setor: localAtivo.setor || l.setor,
+            localizacao: localAtivo.setor || l.localizacao,
             ordemServico: localAtivo.numeroOS || l.ordemServico,
             ordemServicoRetirada: localAtivo.numeroOSRetirada || l.ordemServicoRetirada,
             protegido: true,
           };
         }
-        if (l.status === 'instalado' && candPat) {
+        if (l.status === 'instalado' && candPat && ativosNovosMap.has(candPat)) {
           patrimoniosJaAlocadosEmLocais.add(candPat);
           const osMatch = ativosNovosMap.get(candPat);
           if (osMatch) osJaVinculadasALocais.add(osMatch.id);
@@ -285,6 +366,13 @@ export default function App() {
             ordemServicoRetirada: l.ordemServicoRetirada || osMatch?.numeroOSRetirada || '',
             protegido: true,
           };
+        }
+        if (l.status === 'instalado') {
+          const next = { ...l, status: 'pendente' as const, protegido: false, ordemServico: '', ordemServicoRetirada: '' };
+          delete next.patrimonioInstalado;
+          delete next.serieInstalada;
+          delete next.dataInstalacao;
+          return next;
         }
         return l;
       });
@@ -321,6 +409,8 @@ export default function App() {
             patrimonioInstalado: pat,
             serieInstalada: o.numeroSerie || l.serieInstalada,
             dataInstalacao: o.dataInstalacao || l.dataInstalacao,
+            setor: o.setor || l.setor,
+            localizacao: o.setor || l.localizacao,
             ordemServico: o.numeroOS || l.ordemServico,
             ordemServicoRetirada: o.numeroOSRetirada || l.ordemServicoRetirada,
             protegido: true,
@@ -746,7 +836,7 @@ export default function App() {
   const ordensAtivas = ordens.filter((o) => !o.anulada);
 
   const totalNovos = locaisDistribuicao.length || novosEquipamentos.length;
-  const instaladosNovos = locaisDistribuicao.filter((l) => l.status === 'instalado').length;
+  const instaladosNovos = ordensAtivas.length;
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
